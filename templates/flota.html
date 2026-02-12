@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MOVE OUTSIDE | Flota</title>
+  <style>
+    body{margin:0;font-family:system-ui;background:#0b1220;color:#eaf0ff}
+    header{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:#111a30;border-bottom:1px solid rgba(255,255,255,.08)}
+    .btn{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#eaf0ff;padding:9px 12px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-block}
+    .wrap{max-width:1100px;margin:18px auto;padding:0 16px}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+    .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:16px}
+    .card h2{margin:0 0 6px 0;font-size:15px}
+    .card p{margin:0 0 12px 0;color:#9fb2d6;font-size:12px;line-height:1.35}
+    .tag{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);font-size:12px;color:#eaf0ff}
+    @media (max-width:800px){ .grid{grid-template-columns:1fr} header{flex-direction:column;align-items:flex-start;gap:12px} }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div>
+      <div style="font-weight:800">Flota</div>
+      <div style="color:#9fb2d6;font-size:12px;margin-top:3px;">Inventario · Maestro + Listín</div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a class="btn" href="/">Volver</a>
+      <a class="btn" href="/logout">Cerrar sesión</a>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="grid">
+      <div class="card">
+        <span class="tag">Maestro</span>
+        <h2>Inventario (Google Sheet)</h2>
+        <p>Abrir el maestro de inventario en Google Sheets.</p>
+        <a class="btn" href="/flota/sheet" target="_blank" rel="noopener">Abrir Sheet</a>
+      </div>
+
+      <div class="card">
+        <span class="tag">Listín</span>
+        <h2>Listín Inventario (WebApp)</h2>
+        <p>Abrir el listín de inspección / inventario de flota (Apps Script).</p>
+        <a class="btn" href="/flota/listin" target="_blank" rel="noopener">Abrir Listín</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

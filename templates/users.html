@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MOVE OUTSIDE | Usuarios</title>
+  <style>
+    *{ box-sizing:border-box; }
+    body{margin:0;font-family:system-ui;background:#0b1220;color:#eaf0ff}
+    header{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:#111a30;border-bottom:1px solid rgba(255,255,255,.08)}
+    .btn{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#eaf0ff;padding:9px 12px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-block}
+    .wrap{max-width:1100px;margin:18px auto;padding:0 16px; min-width:0;}
+    .card{
+      background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:16px;
+      padding:16px;
+      margin-bottom:14px;
+      min-width:0;
+      overflow-x:hidden; /* ✅ evita que se “salga” nada */
+    }
+
+    /* ✅ GRID QUE NO DESBORDA */
+    .row{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+      gap:12px;
+      align-items:start;
+    }
+    .row > div{ min-width:0; }
+
+    label{display:block;color:#9fb2d6;font-size:12px;margin:8px 0 6px}
+    input,select{
+      width:100%;
+      max-width:100%;
+      min-width:0;
+      display:block;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(0,0,0,.20);
+      color:#eaf0ff;
+      outline:none;
+    }
+    input:focus, select:focus{border-color:rgba(59,130,246,.65)}
+
+    .ok{color:#bff5d2}
+    .err{color:#ffd9a0}
+
+    /* ✅ TABLA QUE NO ENSANCHA LA PÁGINA */
+    table{
+      width:100%;
+      border-collapse:collapse;
+      table-layout:fixed;         /* ✅ clave */
+      overflow:hidden;
+    }
+    th,td{
+      padding:10px 8px;
+      border-top:1px solid rgba(255,255,255,.08);
+      vertical-align:top;
+      word-break:break-word;      /* ✅ no empuja ancho */
+      overflow-wrap:anywhere;
+    }
+    th{color:#9fb2d6;font-size:12px;text-align:left}
+
+    .chip{padding:4px 10px;border:1px solid rgba(255,255,255,.12);border-radius:999px;background:rgba(255,255,255,.06);font-size:12px;display:inline-block}
+    .mods{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px; min-width:0;}
+    .mods label{
+      margin:0;color:#eaf0ff;font-size:12px;
+      display:flex;gap:6px;align-items:center;
+      max-width:100%;
+    }
+    .mods input{width:auto}
+    .small{color:#9fb2d6;font-size:12px}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+
+    /* ✅ evita que forms dentro de celdas empujen */
+    form{min-width:0;}
+    td form input, td form select{max-width:100%;}
+
+    @media (max-width:920px){
+      .row{grid-template-columns:1fr;}
+      header{flex-direction:column;align-items:flex-start;gap:10px}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <div style="font-weight:700">Usuarios</div>
+      <div class="small">Solo admin puede crear y asignar módulos.</div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a class="btn" href="/">Volver</a>
+      <a class="btn" href="/logout">Cerrar sesión</a>
+    </div>
+  </header>
+
+  <div class="wrap">
+
+    <div class="card">
+      {% if ok %}<div class="ok">✅ {{ ok }}</div>{% endif %}
+      {% if error %}<div class="err">⚠️ {{ error }}</div>{% endif %}
+
+      <h3 style="margin:0 0 10px 0;">Crear usuario</h3>
+
+      <form method="POST" action="/admin/users/create">
+        <div class="row">
+          <div>
+            <label>Usuario</label>
+            <input name="username" placeholder="ej: operador1" required>
+          </div>
+          <div>
+            <label>Contraseña (mín 6)</label>
+            <input name="password" type="password" required>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Rol</label>
+            <select name="role">
+              <option value="user" selected>user</option>
+              <option value="admin">admin</option>
+            </select>
+            <div class="small">Si es admin, tendrá acceso a todo automáticamente.</div>
+          </div>
+
+          <div>
+            <label>Módulos permitidos</label>
+            <div class="mods">
+              {% for m in modules %}
+                <label>
+                  <input type="checkbox" name="modules" value="{{ m.id }}">
+                  {{ m.label }}
+                </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" type="submit">Crear usuario</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px 0;">Usuarios existentes</h3>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:18%;">Usuario</th>
+            <th style="width:12%;">Rol</th>
+            <th style="width:32%;">Módulos</th>
+            <th style="width:24%;">Contraseña</th>
+            <th style="width:14%;">Borrar</th>
+          </tr>
+        </thead>
+
+        <tbody>
+        {% for u in users %}
+          <tr>
+            <td><strong>{{ u.username }}</strong><div class="small">{{ u.created_at }}</div></td>
+            <td>
+              <span class="chip">{{ u.role }}</span>
+              {% if u.username == "admin" %}
+                <div class="small">admin siempre ve todo</div>
+              {% endif %}
+            </td>
+
+            <td>
+              <form method="POST" action="/admin/users/modules">
+                <input type="hidden" name="username" value="{{ u.username }}">
+                <div class="mods">
+                  {% for m in modules %}
+                    <label>
+                      <input type="checkbox" name="modules" value="{{ m.id }}"
+                        {% if (m.id in u.modules_list) or (u.role == "admin") %}checked{% endif %}
+                        {% if u.role == "admin" %}disabled{% endif %}
+                      >
+                      {{ m.id }}
+                    </label>
+                  {% endfor %}
+                </div>
+                <div class="actions">
+                  <button class="btn" type="submit" {% if u.role == "admin" %}disabled{% endif %}>Guardar módulos</button>
+                </div>
+              </form>
+            </td>
+
+            <td>
+              <form method="POST" action="/admin/users/password">
+                <input type="hidden" name="username" value="{{ u.username }}">
+                <label class="small">Nueva contraseña</label>
+                <input name="password" type="password" placeholder="mín 6">
+                <div class="actions">
+                  <button class="btn" type="submit">Cambiar</button>
+                </div>
+              </form>
+            </td>
+
+            <td>
+              <form method="POST" action="/admin/users/delete" onsubmit="return confirm('¿Borrar usuario {{ u.username }}?')">
+                <input type="hidden" name="username" value="{{ u.username }}">
+                <button class="btn" type="submit" {% if u.username == "admin" %}disabled{% endif %}>Borrar</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+
+    </div>
+
+  </div>
+</body>
+</html>

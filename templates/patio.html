@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Facturación → Meribia</title>
+  <style>
+    :root{
+      --bg:#0b1220; --muted:#9fb2d6; --text:#eaf0ff;
+      --border: rgba(255,255,255,.10);
+      --shadow: 0 14px 35px rgba(0,0,0,.35);
+      --radius: 16px;
+      --warn: rgba(255,183,77,.65);
+      --manual: rgba(239,68,68,.55);
+      --ghost: rgba(255,255,255,.55);
+      --chip: rgba(255,255,255,.08);
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0; padding:24px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 15% -10%, rgba(59,130,246,.25), transparent 55%),
+                  radial-gradient(900px 500px at 110% 10%, rgba(239,68,68,.18), transparent 45%),
+                  var(--bg);
+      color:var(--text);
+    }
+    .wrap{ max-width: 1500px; margin:0 auto; }
+    .topbar{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom: 18px; }
+    .brand{ display:flex; align-items:flex-start; gap:16px; }
+    .brand img{
+      width: 96px; height: 96px;
+      object-fit:contain;
+      background: rgba(255,255,255,.06);
+      border:1px solid var(--border);
+      border-radius: 18px;
+      padding:10px;
+    }
+    .brand h1{ font-size: 20px; margin:0; }
+    .sub{ color: var(--muted); font-size: 12px; margin-top:6px; line-height: 1.35; }
+    .ghost{ color: var(--ghost); }
+
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid var(--border);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    /* ✅ Ajuste: añadimos 2 botones KPI sin romper el layout */
+    .controls{
+      display:grid;
+      grid-template-columns: 1fr 1.2fr 0.7fr 0.9fr auto auto auto auto auto;
+      gap:12px;
+      align-items:end;
+    }
+
+    label{ font-size: 12px; color: var(--muted); display:block; margin-bottom:6px; }
+    input[type="file"], input[type="date"], select, input[type="text"], input[type="number"]{
+      width:100%; padding: 10px 12px;
+      border-radius: 12px; border:1px solid var(--border);
+      background: rgba(0,0,0,.20); color: var(--text); outline:none;
+    }
+    input[type="file"]{ padding: 8px 10px; }
+    input[type="date"]{ color-scheme: dark; }
+
+    .btn{
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      cursor:pointer;
+      font-weight: 650;
+      white-space: nowrap;
+      text-decoration:none;
+      display:inline-block;
+    }
+    .btn.primary{
+      background: rgba(59,130,246,.22);
+      border-color: rgba(59,130,246,.45);
+    }
+    .btn:disabled{ opacity:.45; cursor:not-allowed; }
+
+    .status{ margin-top:10px; font-size: 12px; color: var(--muted); display:flex; gap:10px; flex-wrap:wrap; }
+    .pill{
+      display:inline-block; padding: 4px 10px;
+      border-radius: 999px; border:1px solid var(--border);
+      background: rgba(255,255,255,.06); font-size: 12px;
+    }
+    .pill.warn{ border-color: rgba(255,183,77,.5); background: rgba(255,183,77,.12); color: #ffd9a0; }
+    .pill.ok{ border-color: rgba(34,197,94,.45); background: rgba(34,197,94,.12); color: #bff5d2; }
+
+    .filterbar{
+      margin-top: 12px;
+      display:grid;
+      grid-template-columns: 220px 1fr auto;
+      gap: 10px;
+      align-items:end;
+    }
+
+    .tablewrap{ margin-top: 12px; overflow:auto; border-radius: 14px; border:1px solid var(--border); }
+    table{ border-collapse: collapse; width: 100%; min-width: 1700px; background: rgba(0,0,0,.18); }
+    thead th{
+      position: sticky; top: 0;
+      background: rgba(15,27,51,.92);
+      border-bottom:1px solid var(--border);
+      text-align:left; font-size: 12px; color: var(--muted);
+      padding: 10px 12px; white-space: nowrap;
+    }
+    tbody td{ border-top: 1px solid rgba(255,255,255,.06); padding: 10px 12px; }
+    tbody tr:hover{ background: rgba(255,255,255,.04); }
+    .num{ text-align:right; font-variant-numeric: tabular-nums; }
+    .matri-empty{ outline: 2px solid var(--warn); }
+    .manual{ outline: 2px solid var(--manual); }
+    .chip{
+      display:inline-block; padding:4px 8px; border-radius:999px;
+      border:1px solid var(--border); background: var(--chip);
+      font-size: 12px; color: var(--text);
+    }
+
+    .switch{
+      display:flex; gap:10px; align-items:center;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border:1px solid var(--border);
+      background: rgba(0,0,0,.20);
+      height: 42px;
+    }
+    .switch input{ transform: scale(1.2); }
+
+    /* ✅ Modal KPI */
+    .modal{
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      z-index: 9999;
+    }
+    .modal .box{
+      width: min(1100px, 98vw);
+      background: rgba(15,27,51,.95);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 14px;
+    }
+    .modal .row{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      margin-bottom: 10px;
+    }
+    .modal h3{ margin:0; font-size: 15px; }
+    .modal small{ color: var(--muted); }
+    .modal .tbl{ max-height: 70vh; overflow:auto; border-radius: 12px; border:1px solid var(--border); }
+    .modal table{ min-width: 900px; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+
+    <div class="topbar">
+      <div class="brand">
+        <img src="/static/moveoutside.png" alt="Move Outside" onerror="this.style.display='none'">
+        <div>
+          <h1>Facturación → Meribia</h1>
+          <div class="sub">
+            1) Selecciona operativa y PDF · 2) Ajusta horas / matrículas / proveedor · 3) (Opcional) Festivo · 4) Exportar XLSX.
+          </div>
+        </div>
+      </div>
+      <span class="pill" id="totalsPill" style="display:none;"></span>
+    </div>
+
+    <div class="card">
+      <div class="controls">
+        <div>
+          <label>Operativa</label>
+          <select id="operativa">
+            {% for op in operativas %}
+              <option value="{{ op.id }}" {% if op.id == default_operativa %}selected{% endif %}>{{ op.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label>PDF diario (ECI)</label>
+          <input type="file" id="pdf" accept="application/pdf" />
+        </div>
+
+        <div>
+          <label>Fecha factura</label>
+          <input type="date" id="date" />
+        </div>
+
+        <div>
+          <label>Festivo / Domingo</label>
+          <div class="switch">
+            <input type="checkbox" id="festivo" onchange="renderAll()">
+            <span>Aplicar tarifas festivo</span>
+          </div>
+        </div>
+
+        <button class="btn primary" onclick="upload()">Subir PDF</button>
+        <button class="btn" id="exportBtn" onclick="exportXlsx()" disabled>Exportar XLSX</button>
+        <button class="btn" onclick="downloadKpiXlsx()">KPI XLSX</button>
+        <button class="btn" onclick="openKpiHistory()">Historial KPI</button>
+        <button class="btn" onclick="clearFilter()">Limpiar filtro</button>
+      </div>
+
+      <div class="status" id="statusArea">
+        <span class="pill" id="statusPill">Listo para importar.</span>
+      </div>
+
+      <!-- ✅ FILTRO -->
+      <div class="filterbar" id="filterBar" style="display:none;">
+        <div>
+          <label>Filtrar por</label>
+          <select id="filterCol" onchange="applyFilter()">
+            <option value="Conductor">Conductor</option>
+            <option value="Matricula">Matrícula</option>
+            <option value="Proveedor">Consignatario</option>
+            <option value="Ruta">Ruta</option>
+          </select>
+        </div>
+        <div>
+          <label>Buscar</label>
+          <input id="filterText" type="text" placeholder="Ej: 1234ABC o PIBEJO o Juan..." oninput="debouncedFilter()">
+        </div>
+        <div>
+          <span class="pill" id="filterCount" style="display:none;"></span>
+        </div>
+      </div>
+
+      <div class="tablewrap" id="tblWrap" style="display:none;">
+        <table>
+          <thead>
+            <tr>
+              <th>Conductor</th>
+              <th class="num">Horas (AE)</th>
+              <th>Matrícula (AH)</th>
+              <th>Ruta</th>
+              <th>Proveedor (editable)</th>
+              <th class="num">Cobro €/h</th>
+              <th class="num">Cobro total</th>
+              <th class="num">Coste total (editable)</th>
+              <th class="num">Modo coste</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ✅ MODAL HISTORIAL KPI -->
+  <div class="modal" id="kpiModal" aria-hidden="true">
+    <div class="box" role="dialog" aria-modal="true" aria-label="Historial KPI">
+      <div class="row">
+        <div>
+          <h3>Historial KPI</h3>
+          <small>Se guarda automáticamente cada vez que exportas XLSX.</small>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="btn" onclick="downloadKpiXlsx()">Descargar XLSX</button>
+          <button class="btn" onclick="closeKpiHistory()">Cerrar</button>
+        </div>
+      </div>
+
+      <div class="tbl">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Operativa</th>
+              <th class="num">Festivo</th>
+              <th class="num">Conductores</th>
+              <th class="num">Horas</th>
+              <th class="num">Cobro</th>
+              <th class="num">Coste</th>
+              <th class="num">Manual</th>
+            </tr>
+          </thead>
+          <tbody id="kpiTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+  let COBRO_RUTA = {"V429":32, "V429.1":48, "V429.2":29};
+  let RUTAS = ["V429","V429.1","V429.2"];
+  let rows = [];
+  let currentOperativa = document.getElementById("operativa").value;
+
+  let PROVEEDORES = [];
+  let PROV_FULL = {};
+
+  let warnedManual = false;
+
+  // filtro
+  let filteredIdx = null;
+  let filterTimer = null;
+
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById("date").value = today;
+
+  function cobroHora(ruta){ return Number(COBRO_RUTA[ruta] ?? 0); }
+  function toNum(v){ const n = Number(v); return isNaN(n) ? 0 : n; }
+  function isPropio(prov){ return String(prov||"").toUpperCase().trim() === "PIBEJO"; }
+
+  function setStatus(pills){
+    const area = document.getElementById("statusArea");
+    area.innerHTML = "";
+    pills.forEach(p=>{
+      const span = document.createElement("span");
+      span.className = "pill " + (p.type||"");
+      span.textContent = p.text;
+      area.appendChild(span);
+    });
+  }
+
+  function updateExportState(){
+    const missing = rows.filter(r => !String(r.Matricula||"").trim()).length;
+    document.getElementById("exportBtn").disabled = (!rows.length || missing > 0);
+  }
+
+  function pagoUnit(row){
+    const fest = document.getElementById("festivo").checked;
+    const p = String(row.Proveedor||"").toUpperCase().trim();
+    const info = PROV_FULL[p];
+    if(!info) return {tipo:"hora", unit:0};
+
+    if(info.tipo === "dia"){
+      return {tipo:"dia", unit: fest ? toNum(info.pago_dia_f) : toNum(info.pago_dia)};
+    }
+    return {tipo:"hora", unit: fest ? toNum(info.pago_f) : toNum(info.pago_h)};
+  }
+
+  function costeCalc(row){
+    if (row.OverrideCoste && row.CosteManual != null){
+      return {importe: toNum(row.CosteManual), modo:"MANUAL"};
+    }
+    if(isPropio(row.Proveedor)) return {importe:0, modo:"PROPIO"};
+
+    const info = PROV_FULL[String(row.Proveedor||"").toUpperCase().trim()];
+    if(!info) return {importe:0, modo:"SIN TARIFA"};
+
+    const horas = toNum(row.HorasReales);
+    const pu = pagoUnit(row);
+    if(pu.tipo === "dia") return {importe: pu.unit, modo:"DIA"};
+    return {importe: horas * pu.unit, modo:"HORA"};
+  }
+
+  function calcTotals(){
+    let totalHoras = 0, totalCobro = 0, totalCoste = 0, manualCount = 0, sinTarifa = 0;
+
+    rows.forEach(r=>{
+      const horas = toNum(r.HorasReales);
+      totalHoras += horas;
+      totalCobro += horas * cobroHora(r.Ruta);
+
+      const c = costeCalc(r);
+      totalCoste += c.importe;
+
+      if (r.OverrideCoste) manualCount += 1;
+      if (c.modo === "SIN TARIFA") sinTarifa += 1;
+    });
+
+    return {totalHoras, totalCobro, totalCoste, manualCount, sinTarifa};
+  }
+
+  function warnManualOnce(){
+    if (warnedManual) return;
+    warnedManual = true;
+    alert("⚠️ Estás modificando el IMPORTE de COSTE manualmente.\n\nEsto sobrescribe el cálculo automático y se exportará tal cual a Meribia.\n\nÚsalo solo si estás seguro.");
+  }
+
+  function updateSummaryOnly(){
+    const t = calcTotals();
+    const totalsPill = document.getElementById("totalsPill");
+    if(rows.length){
+      totalsPill.style.display = "";
+      totalsPill.textContent =
+        `Total: ${t.totalHoras.toFixed(2)} h · Cobro: ${t.totalCobro.toFixed(2)} € · Coste: ${t.totalCoste.toFixed(2)} €` +
+        (t.manualCount>0 ? ` · Manual: ${t.manualCount}` : "") +
+        (t.sinTarifa>0 ? ` · Sin tarifa: ${t.sinTarifa}` : "");
+    } else {
+      totalsPill.style.display = "none";
+    }
+
+    const pills = [];
+    pills.push({type:"ok", text:`Conductores: ${rows.length}`});
+    pills.push({type:"ok", text:`Horas: ${t.totalHoras.toFixed(2)}`});
+    if(t.sinTarifa>0) pills.push({type:"warn", text:`Hay ${t.sinTarifa} filas SIN TARIFA (coste 0).`});
+    if(t.manualCount>0) pills.push({type:"warn", text:`ATENCIÓN: ${t.manualCount} costes manuales`});
+
+    const missingAll = rows.filter(r => !String(r.Matricula||"").trim()).length;
+    if(missingAll > 0) pills.push({type:"warn", text:`Faltan matrículas: ${missingAll} (no exporta)`});
+    else pills.push({type:"ok", text:`Matrículas OK`});
+    setStatus(pills);
+
+    updateExportState();
+  }
+
+  async function fetchProveedores(){
+    const res = await fetch("/proveedores");
+    const data = await res.json();
+    const list = data.proveedores || [];
+
+    PROVEEDORES = list.map(p => String(p.nombre||"").toUpperCase().trim()).filter(Boolean);
+    PROV_FULL = {};
+    PROVEEDORES.forEach(n=>{
+      const obj = list.find(x => String(x.nombre||"").toUpperCase().trim() === n);
+      if(obj) PROV_FULL[n] = obj;
+    });
+
+    if(!PROV_FULL["PIBEJO"]){
+      PROVEEDORES.unshift("PIBEJO");
+      PROV_FULL["PIBEJO"] = {nombre:"PIBEJO", tipo:"hora", pago_h:0, pago_f:0};
+    }
+  }
+
+  // ===== filtro =====
+  function debouncedFilter(){
+    if(filterTimer) clearTimeout(filterTimer);
+    filterTimer = setTimeout(applyFilter, 120);
+  }
+
+  function applyFilter(){
+    const col = document.getElementById("filterCol").value;
+    const q = String(document.getElementById("filterText").value||"").trim().toUpperCase();
+    if(!q){
+      filteredIdx = null;
+      document.getElementById("filterCount").style.display = "none";
+      renderAll();
+      return;
+    }
+
+    filteredIdx = [];
+    rows.forEach((r, i)=>{
+      const val = String(r[col] ?? "").toUpperCase();
+      if(val.includes(q)) filteredIdx.push(i);
+    });
+
+    const pill = document.getElementById("filterCount");
+    pill.style.display = "";
+    pill.textContent = `Mostrando ${filteredIdx.length} / ${rows.length}`;
+    renderAll();
+  }
+
+  function clearFilter(){
+    const t = document.getElementById("filterText");
+    if(t) t.value = "";
+    filteredIdx = null;
+    const pill = document.getElementById("filterCount");
+    pill.style.display = "none";
+    renderAll();
+  }
+
+  function renderAll(){
+    const tbody = document.getElementById("tbody");
+    tbody.innerHTML = "";
+
+    const list = filteredIdx ? filteredIdx : rows.map((_,i)=>i);
+
+    list.forEach((idx) => {
+      const r = rows[idx];
+      const horas = toNum(r.HorasReales);
+      const cph = cobroHora(r.Ruta);
+      const cobroTotal = horas * cph;
+
+      const c = costeCalc(r);
+      const costClass = r.OverrideCoste ? "manual" : "";
+
+      const mat = String(r.Matricula ?? "");
+      const matClass = mat.trim() ? "" : "matri-empty";
+      const matGhost = r.MatriculaFromMaster ? "ghost" : "";
+
+      const provVal = String(r.Proveedor||"").toUpperCase().trim();
+      const provOptions = []
+        .concat(PROVEEDORES.map(p => `<option value="${p}" ${p===provVal ? "selected" : ""}>${p}</option>`))
+        .concat([`<option value="__ADD__">+ Añadir proveedor…</option>`])
+        .join("");
+
+      const rutaOptions = RUTAS.map(x => `<option ${x===r.Ruta ? "selected":""}>${x}</option>`).join("");
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${r.Conductor}</td>
+
+        <td class="num">
+          <input type="number" step="0.01" min="0" value="${horas.toFixed(2)}"
+                 oninput="rows[${idx}].HorasReales=Number(this.value||0); updateSummaryOnly();">
+        </td>
+
+        <td>
+          <input class="${matClass} ${matGhost}" type="text"
+            value="${mat}"
+            placeholder="Ej: 1234ABC"
+            oninput="rows[${idx}].Matricula=this.value; rows[${idx}].MatriculaFromMaster=false; updateSummaryOnly();">
+        </td>
+
+        <td>
+          <select onchange="rows[${idx}].Ruta=this.value; renderAll();">
+            ${rutaOptions}
+          </select>
+        </td>
+
+        <td>
+          <select onchange="onProveedorChange(${idx}, this.value)">
+            ${provOptions}
+          </select>
+          ${PROV_FULL[provVal] ? "" : `<div class="hint">⚠️ Sin tarifa: crea/elige proveedor</div>`}
+        </td>
+
+        <td class="num">${cph.toFixed(2)}</td>
+        <td class="num">${cobroTotal.toFixed(2)}</td>
+
+        <td class="num">
+          <input class="${costClass}" type="number" step="0.01" min="0" value="${c.importe.toFixed(2)}"
+                 onfocus="warnManualOnce()"
+                 oninput="rows[${idx}].OverrideCoste=true; rows[${idx}].CosteManual=Number(this.value||0); renderAll();">
+        </td>
+
+        <td class="num"><span class="chip">${c.modo}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById("tblWrap").style.display = rows.length ? "" : "none";
+    document.getElementById("filterBar").style.display = rows.length ? "" : "none";
+    updateSummaryOnly();
+  }
+
+  function onProveedorChange(idx, value){
+    if(value === "__ADD__"){
+      alert("Para añadir proveedor: lo activamos en la siguiente mejora (alta + tarifa). Por ahora elige uno existente.");
+      renderAll();
+      return;
+    }
+    rows[idx].Proveedor = value;
+    rows[idx].OverrideCoste = false;
+    rows[idx].CosteManual = null;
+    renderAll();
+  }
+
+  async function upload(){
+    currentOperativa = document.getElementById("operativa").value;
+    const f = document.getElementById("pdf").files[0];
+    if(!f) return alert("Selecciona un PDF");
+
+    setStatus([{text:"Procesando PDF..."}]);
+
+    await fetchProveedores();
+
+    const fd = new FormData();
+    fd.append("pdf", f);
+    fd.append("operativa", currentOperativa);
+
+    const res = await fetch("/upload", { method:"POST", body: fd });
+    const data = await res.json();
+
+    if (data.error) {
+      setStatus([{type:"warn", text:data.error}]);
+      return;
+    }
+
+    COBRO_RUTA = data.cobro_ruta || COBRO_RUTA;
+    RUTAS = data.rutas || RUTAS;
+
+    rows = (data.rows || []).map(r => ({
+      Conductor: r.Conductor,
+      HorasReales: Number(r.HorasReales || 0),
+      Matricula: r.Matricula || "",
+      MatriculaFromMaster: !!r.MatriculaFromMaster,
+      Ruta: r.Ruta || "V429",
+      Proveedor: String(r.Proveedor || "").toUpperCase().trim() || "PIBEJO",
+      OverrideCoste: false,
+      CosteManual: null
+    }));
+
+    warnedManual = false;
+    filteredIdx = null;
+    const pill = document.getElementById("filterCount");
+    pill.style.display = "none";
+    document.getElementById("filterText").value = "";
+    renderAll();
+    setStatus([{type:"ok", text:`PDF OK · Puedes filtrar y luego exportar` }]);
+  }
+
+  async function exportXlsx(){
+    if(!rows.length) return alert("Primero sube un PDF");
+
+    const missing = rows.filter(r => !String(r.Matricula||"").trim()).length;
+    if(missing > 0) return alert(`Faltan ${missing} matrículas. Rellénalas antes de exportar.`);
+
+    const date = document.getElementById("date").value;
+    const festivo = document.getElementById("festivo").checked;
+
+    const res = await fetch("/export", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ rows, date, operativa: currentOperativa, festivo })
+    });
+
+    const ct = res.headers.get("content-type") || "";
+    if(ct.includes("application/json")){
+      const err = await res.json();
+      alert(err.error || "Error exportando");
+      return;
+    }
+
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `MERIBIA_${currentOperativa}_${date}.xlsx`;
+    a.click();
+
+    rows = rows.map(r => ({...r, MatriculaFromMaster: true}));
+    renderAll();
+  }
+
+  // ✅ KPI XLSX
+  function downloadKpiXlsx(){
+    window.open("/kpis/xlsx", "_blank");
+  }
+
+  // ✅ Historial KPI (modal)
+  async function openKpiHistory(){
+    const modal = document.getElementById("kpiModal");
+    const tbody = document.getElementById("kpiTbody");
+    tbody.innerHTML = "<tr><td colspan='8'>Cargando...</td></tr>";
+
+    modal.style.display = "flex";
+    modal.setAttribute("aria-hidden", "false");
+
+    try{
+      const res = await fetch("/kpis/json");
+      const data = await res.json();
+      if(data.error){
+        tbody.innerHTML = `<tr><td colspan="8">${data.error}</td></tr>`;
+        return;
+      }
+      const rowsKpi = data.rows || [];
+      if(!rowsKpi.length){
+        tbody.innerHTML = `<tr><td colspan="8">No hay KPIs todavía. Exporta un XLSX para generar el primer registro.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = "";
+      rowsKpi.slice().reverse().forEach(r=>{
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${r.fecha || ""}</td>
+          <td>${r.operativa || ""}</td>
+          <td class="num">${Number(r.festivo||0) ? "1" : "0"}</td>
+          <td class="num">${Number(r.conductores||0)}</td>
+          <td class="num">${Number(r.horas_total||0).toFixed(2)}</td>
+          <td class="num">${Number(r.cobro_total||0).toFixed(2)}</td>
+          <td class="num">${Number(r.coste_total||0).toFixed(2)}</td>
+          <td class="num">${Number(r.manual_costes||0)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }catch(e){
+      tbody.innerHTML = `<tr><td colspan="8">Error cargando historial KPI</td></tr>`;
+    }
+  }
+
+  function closeKpiHistory(){
+    const modal = document.getElementById("kpiModal");
+    modal.style.display = "none";
+    modal.setAttribute("aria-hidden", "true");
+  }
+
+  // cerrar modal al click fuera
+  document.addEventListener("click", (e)=>{
+    const modal = document.getElementById("kpiModal");
+    if(modal && modal.style.display === "flex" && e.target === modal){
+      closeKpiHistory();
+    }
+  });
+
+  fetchProveedores();
+</script>
+</body>
+</html>

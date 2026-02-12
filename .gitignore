@@ -1,0 +1,10 @@
+﻿__pycache__/
+*.pyc
+*.db
+uploads/
+.env
+venv/
+.env.*
+*.log
+salida_meribia.xlsx
+kpis_facturacion.csv

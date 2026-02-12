@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MOVE OUTSIDE | Dashboard</title>
+  <style>
+    body{margin:0;font-family:system-ui;background:#0b1220;color:#eaf0ff}
+    header{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:#111a30;border-bottom:1px solid rgba(255,255,255,.08)}
+    .brand{display:flex;align-items:center;gap:12px}
+
+    .brand img{
+      width:174px;height:174px;object-fit:contain;
+      background:rgba(255,255,255,.06);
+      border-radius:18px;
+      padding:10px;
+      border:1px solid rgba(255,255,255,.10)
+    }
+
+    .brand h1{font-size:16px;margin:0}
+    .brand .sub{font-size:12px;color:#9fb2d6;margin-top:3px}
+    .btn{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#eaf0ff;padding:9px 12px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-block}
+    .wrap{max-width:1100px;margin:18px auto;padding:0 16px}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+    .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:16px}
+    .card h2{margin:0 0 6px 0;font-size:15px}
+    .card p{margin:0 0 12px 0;color:#9fb2d6;font-size:12px;line-height:1.35}
+    .tag{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);font-size:12px;color:#eaf0ff}
+    .top-actions{display:flex;gap:10px;align-items:center}
+
+    .credit{
+      position:fixed; right:14px; bottom:10px;
+      font-size:11px; color:rgba(159,178,214,.55);
+      pointer-events:none; user-select:none; z-index:9999;
+    }
+
+    @media (max-width:800px){
+      header{flex-direction:column;align-items:flex-start;gap:12px}
+      .grid{grid-template-columns:1fr}
+      .brand img{width:140px;height:140px}
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="brand">
+      <img src="/static/moveoutside.png" alt="Move Outside">
+      <div>
+        <h1>MOVE OUTSIDE</h1>
+        <div class="sub">Panel principal · Módulos según permisos</div>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      {% if is_admin %}
+        <a class="btn" href="/admin/users">Usuarios</a>
+      {% endif %}
+      <a class="btn" href="/logout">Cerrar sesión</a>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="grid">
+      {% for m in modules %}
+        <div class="card">
+          <span class="tag">
+            {% if m.id == "realtime" %}Panel{% elif m.id == "facturacion_patio" %}Facturación{% else %}Flota{% endif %}
+          </span>
+
+          <h2>{{ m.label }}</h2>
+
+          {% if m.id == "realtime" %}
+            <p>Mapa + conductores + servicios.</p>
+            <a class="btn" href="/panel/realtime">Entrar</a>
+
+          {% elif m.id == "facturacion_patio" %}
+            <p>Importar PDF, agrupar, editar y exportar XLSX para Meribia.</p>
+            <a class="btn" href="/facturacion/patio">Entrar</a>
+
+          {% elif m.id == "flota" %}
+            <p>Inventario de flota: Maestro (Sheet) + Listín (WebApp).</p>
+            <a class="btn" href="/flota">Entrar</a>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
+    {% if modules|length == 0 %}
+      <p style="color:#9fb2d6;margin-top:16px;">No tienes módulos asignados. Pide acceso al administrador.</p>
+    {% endif %}
+  </div>
+
+  <div class="credit">desarrollado por Juan Carlos Aguilar Baiz</div>
+</body>
+</html>

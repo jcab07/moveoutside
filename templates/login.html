@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Move Outside · Acceso</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:system-ui;background:#0b1220;color:#eaf0ff;padding:18px}
+
+    .card{
+      width:min(520px,92vw);
+      background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:16px;
+      padding:18px;
+      box-shadow:0 14px 35px rgba(0,0,0,.35);
+      overflow:hidden;
+    }
+
+    /* ✅ Para que el logo grande no “reviente” el header */
+    .brand{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:12px;
+      margin-bottom:14px;
+      text-align:center;
+    }
+
+    /* ✅ LOGO x4 (antes 62x62) => 248x248 */
+    .brand img{
+      width:248px;height:248px;
+      object-fit:contain;
+      background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:22px;
+      padding:12px;
+      flex:0 0 auto;
+    }
+
+    h1{margin:0;font-size:18px;line-height:1.1}
+    .sub{margin-top:4px;font-size:12px;color:#9fb2d6}
+
+    label{display:block;font-size:12px;color:#9fb2d6;margin:10px 0 6px}
+    input{
+      display:block;width:100%;max-width:100%;
+      padding:10px 12px;border-radius:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(0,0,0,.22);
+      color:#eaf0ff;outline:none
+    }
+    input:focus{border-color:rgba(59,130,246,.65)}
+    button{
+      margin-top:14px;width:100%;
+      padding:10px 12px;border-radius:12px;
+      border:1px solid rgba(59,130,246,.45);
+      background:rgba(59,130,246,.22);
+      color:#eaf0ff;font-weight:800;cursor:pointer
+    }
+    button:hover{background:rgba(59,130,246,.30)}
+    .err{
+      margin-top:10px;color:#ffd9a0;background:rgba(255,183,77,.12);
+      border:1px solid rgba(255,183,77,.45);
+      padding:8px 10px;border-radius:12px;font-size:12px
+    }
+
+    /* Ajuste móvil */
+    @media (max-width:520px){
+      .brand img{width:200px;height:200px}
+    }
+  </style>
+</head>
+<body>
+  <form class="card" method="POST" action="/login">
+    <div class="brand">
+      <img src="/static/moveoutside.png" alt="Move Outside">
+      <div>
+        <h1>Move Outside · Portal</h1>
+        <div class="sub">Acceso al panel y módulos</div>
+      </div>
+    </div>
+
+    <label>Usuario</label>
+    <input name="username" autocomplete="username" required>
+
+    <label>Contraseña</label>
+    <input name="password" type="password" autocomplete="current-password" required>
+
+    <button type="submit">Entrar</button>
+
+    {% if error %}
+      <div class="err">{{ error }}</div>
+    {% endif %}
+  </form>
+</body>
+</html>

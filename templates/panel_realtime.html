@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MOVE OUTSIDE | Control Panel</title>
+
+  <link rel="stylesheet" href="/static/style.css" />
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- ✅ Bandera para que el JS sepa que estamos usando login Flask -->
+  <script>
+    window.MOVE_AUTH_MODE = "flask";
+  </script>
+</head>
+
+<body>
+  <!-- Pantalla de Login (DESACTIVADA en modo Flask) -->
+  <div id="loginScreen" class="screen" style="display:none;">
+    <div class="login-card" role="region" aria-label="Acceso operador MOVE OUTSIDE">
+      <img
+        src="https://cdn.abacus.ai/images/c02fd3ea-9d4a-4b30-8544-27c1ae543dc0.png"
+        alt="MOVE OUTSIDE Logo"
+        class="login-logo"
+      />
+
+      <h3>Acceso Operador MOVE OUTSIDE</h3>
+
+      <input type="email" id="email" placeholder="Email corporativo" autocomplete="username" />
+      <input type="password" id="password" placeholder="Contraseña" autocomplete="current-password" />
+
+      <button id="loginBtn" class="btn-login" type="button">ENTRAR AL SISTEMA</button>
+
+      <p id="loginError" class="error" aria-live="polite"></p>
+      <p class="hint">Tip: abre con Live Server (http://localhost:5500)</p>
+    </div>
+  </div>
+
+  <!-- Pantalla Principal (ACTIVA en modo Flask) -->
+  <div id="mainScreen" class="screen" style="display:block;">
+    <header>
+      <div class="header-left">
+        <img
+          src="https://cdn.abacus.ai/images/c02fd3ea-9d4a-4b30-8544-27c1ae543dc0.png"
+          alt="MOVE OUTSIDE Logo"
+          class="header-logo"
+        />
+        <div>
+          <h2>MOVE OUTSIDE</h2>
+          <div class="sub">Gestión Logística</div>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <!-- ✅ En modo Flask, mostramos el usuario de la sesión -->
+        <span id="userEmail" class="user-email"></span>
+        <a href="/logout" class="btn-logout" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">
+          Cerrar sesión
+        </a>
+      </div>
+    </header>
+
+    <main class="dashboard">
+      <section class="stats-bar">
+        <div class="stat-card">
+          <span class="stat-label">Servicios</span>
+          <span id="count-total" class="stat-value">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Activos</span>
+          <span id="count-active" class="stat-value">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Conductores libres</span>
+          <span id="count-drivers" class="stat-value">0</span>
+        </div>
+      </section>
+
+      <div class="grid-container">
+        <div class="col-left">
+          <div class="card drivers-card">
+            <h3>Flota en tiempo real</h3>
+            <div id="driversList" class="list-container"></div>
+          </div>
+
+          <div class="card map-card">
+            <div id="map"></div>
+          </div>
+        </div>
+
+        <div class="col-right">
+          <div class="card orders-card">
+            <div class="card-header">
+              <h3>Gestión de Servicios</h3>
+              <button id="newOrderBtn" class="btn-primary" type="button">+ Nuevo Servicio</button>
+            </div>
+            <div id="ordersList" class="list-container"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal Nuevo Servicio -->
+  <div id="orderModal" class="modal" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-label="Crear servicio">
+      <h3>Nuevo Servicio</h3>
+
+      <input type="text" id="orderOrigin" placeholder="Punto de Origen" />
+      <input type="text" id="orderDest" placeholder="Punto de Destino" />
+
+      <input
+        type="text"
+        id="orderPlate"
+        placeholder="Matrícula (ej: 1234-ABC)"
+        maxlength="12"
+        autocomplete="off"
+      />
+
+      <input
+        type="text"
+        id="orderProject"
+        placeholder="Proyecto (ej: V429)"
+        maxlength="10"
+        autocomplete="off"
+      />
+
+      <select id="orderPriority">
+        <option value="Normal">Prioridad Normal</option>
+        <option value="Alta">Prioridad Alta</option>
+        <option value="Urgente">URGENTE</option>
+      </select>
+
+      <div class="modal-actions">
+        <button id="orderCancelBtn" type="button">Cancelar</button>
+        <button id="orderConfirmBtn" class="btn-confirm" type="button">Confirmar Servicio</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/script.js"></script>
+</body>
+</html>
