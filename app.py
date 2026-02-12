@@ -1,5 +1,5 @@
 # app.py
-import os, re, datetime, csv, sqlite3
+import os, re, datetime, csv, sqlite3, traceback
 from copy import copy
 from functools import wraps
 
@@ -12,6 +12,7 @@ import pdfplumber
 import pandas as pd
 import openpyxl
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 
 # =========================
 # CONFIG FACTURACIÓN
@@ -88,7 +89,17 @@ app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = "uploads"
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
+# límite de subida (25MB)
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
+
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "CAMBIA-ESTO-POR-UNA-FRASE-LARGA-123456")
+
+ALLOWED_EXTENSIONS = {"pdf"}
+
+def allowed_file(filename: str) -> bool:
+    if not filename:
+        return False
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # =========================
 # USUARIOS (SQLite)
@@ -111,7 +122,6 @@ def init_users_db():
                 created_at TEXT NOT NULL
             )
         """)
-        # Si vienes de una DB antigua sin columna modules, intenta añadirla:
         try:
             conn.execute("ALTER TABLE users ADD COLUMN modules TEXT NOT NULL DEFAULT ''")
         except Exception:
@@ -130,7 +140,7 @@ def ensure_default_admin():
                     username,
                     generate_password_hash(password),
                     "admin",
-                    "",  # admin ve todo por rol, no necesita módulos
+                    "",
                     datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 )
             )
@@ -148,12 +158,9 @@ def csv_to_modules(s: str):
 
 def modules_to_csv(mods: list):
     mods = [m.strip() for m in (mods or []) if m and m.strip()]
-    # limpia ids no existentes
     valid = {m["id"] for m in MODULES}
     mods = [m for m in mods if m in valid]
-    # dedup preservando orden
-    out = []
-    seen = set()
+    out, seen = [], set()
     for m in mods:
         if m not in seen:
             out.append(m)
@@ -218,8 +225,7 @@ def set_modules(username: str, modules: list):
     if not username:
         raise ValueError("Usuario vacío")
     if username == "admin":
-        return  # admin no necesita módulos
-
+        return
     modules_csv = modules_to_csv(modules)
     with db() as conn:
         if not conn.execute("SELECT username FROM users WHERE username=?", (username,)).fetchone():
@@ -235,7 +241,6 @@ def delete_user(username: str):
         conn.execute("DELETE FROM users WHERE username=?", (username,))
         conn.commit()
 
-# Inicializa DB usuarios al cargar
 init_users_db()
 ensure_default_admin()
 
@@ -294,7 +299,6 @@ def login():
             session["username"] = user["username"]
             session["role"] = user["role"]
 
-            # ✅ módulos
             mods = csv_to_modules(user["modules"])
             session["modules_csv"] = user["modules"] or ""
             session["modules_list"] = mods
@@ -558,7 +562,7 @@ def parse_and_group(pdf_path: str):
     return grouped.to_dict(orient="records")
 
 # =========================
-# MAESTRO Conductor -> Matricula/Ruta (maestro_matriculas.xlsx)
+# MAESTRO Conductor -> Matricula/Ruta
 # =========================
 def ensure_master_exists(master_path: str):
     if os.path.exists(master_path):
@@ -683,7 +687,6 @@ def generate_meribia_xlsx(
     ws = wb["PLANTILLA"]
     max_col = ws.max_column
 
-    # Limpia datos desde fila 2
     for rr in range(2, ws.max_row + 1):
         for cc in range(1, max_col + 1):
             ws.cell(rr, cc).value = None
@@ -774,7 +777,7 @@ def append_kpi(date_iso: str, operativa: str, rows: list, cobro_ruta: dict,
 def dashboard():
     is_admin = (session.get("role") == "admin")
     if is_admin:
-        modules = MODULES[:]   # admin ve todo
+        modules = MODULES[:]
     else:
         allowed = set(session.get("modules_list", []) or [])
         modules = [m for m in MODULES if m["id"] in allowed]
@@ -793,7 +796,6 @@ def facturacion_patio():
     ops = [{"id": k, "label": v["label"]} for k, v in OPERATIVAS.items()]
     return render_template("patio.html", operativas=ops, default_operativa=DEFAULT_OPERATIVA)
 
-# ✅ NUEVO: FLOTA (submódulos)
 @app.route("/flota")
 @login_required
 @module_required("flota")
@@ -824,7 +826,7 @@ def admin_users():
 @admin_required
 def admin_users_create():
     try:
-        modules = request.form.getlist("modules")  # checkboxes
+        modules = request.form.getlist("modules")
         create_user(
             request.form.get("username",""),
             request.form.get("password",""),
@@ -868,7 +870,7 @@ def admin_users_delete():
         return render_template("users.html", users=list_users(), modules=MODULES, ok=None, error=str(e))
 
 # =========================
-# API FACTURACIÓN (PROTEGIDA)
+# API FACTURACIÓN
 # =========================
 @app.route("/proveedores", methods=["GET"])
 @login_required
@@ -910,12 +912,29 @@ def upload():
 
     f = request.files.get("pdf")
     if not f:
-        return jsonify({"error": "No se recibió PDF"}), 400
+        return jsonify({"error": "No se recibió PDF (request.files vacío). Asegúrate de seleccionar un PDF."}), 400
 
-    path = os.path.join(app.config["UPLOAD_FOLDER"], f.filename)
-    f.save(path)
+    if not allowed_file(f.filename):
+        return jsonify({"error": f"Archivo inválido: {f.filename}. Solo se permite .pdf"}), 400
 
-    rows = parse_and_group(path)
+    safe_name = secure_filename(f.filename)
+    stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    final_name = f"{stamp}_{safe_name}"
+    path = os.path.join(app.config["UPLOAD_FOLDER"], final_name)
+
+    try:
+        f.save(path)
+    except Exception as e:
+        return jsonify({"error": f"No pude guardar el PDF en uploads/: {e}"}), 400
+
+    try:
+        rows = parse_and_group(path)
+    except Exception as e:
+        tb = traceback.format_exc()
+        return jsonify({
+            "error": f"Error leyendo/parsing el PDF: {e}",
+            "trace": tb[-2000:]  # recorta
+        }), 400
 
     for r in rows:
         r["ConductorKey"] = key_name(r.get("Conductor", ""))
@@ -986,6 +1005,30 @@ def export():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+    return send_file(out, as_attachment=True)
+
+# ---- KPIs: JSON y XLSX (para que no te salgan 404) ----
+@app.route("/kpis/json", methods=["GET"])
+@login_required
+@module_required("facturacion_patio")
+def kpis_json():
+    if not os.path.exists(KPI_FILE):
+        return jsonify({"kpis": []})
+    df = pd.read_csv(KPI_FILE, sep=";")
+    # orden por fecha asc
+    if "fecha" in df.columns:
+        df = df.sort_values("fecha")
+    return jsonify({"kpis": df.to_dict(orient="records")})
+
+@app.route("/kpis/xlsx", methods=["GET"])
+@login_required
+@module_required("facturacion_patio")
+def kpis_xlsx():
+    if not os.path.exists(KPI_FILE):
+        return jsonify({"error": "No hay KPIs todavía."}), 400
+    df = pd.read_csv(KPI_FILE, sep=";")
+    out = "kpis_facturacion.xlsx"
+    df.to_excel(out, index=False)
     return send_file(out, as_attachment=True)
 
 @app.route("/kpis/download", methods=["GET"])
