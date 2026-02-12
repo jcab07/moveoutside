@@ -1,5 +1,5 @@
 # app.py
-import os, re, datetime, csv, sqlite3, traceback
+import os, re, datetime, csv, sqlite3
 from copy import copy
 from functools import wraps
 
@@ -15,14 +15,21 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
 # =========================
+# PATHS ABSOLUTOS (evita problemas en server)
+# =========================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+def p(*parts):  # helper path join
+    return os.path.join(BASE_DIR, *parts)
+
+# =========================
 # CONFIG FACTURACIÓN
 # =========================
 OPERATIVAS = {
     "PATIO_ECI": {
         "label": "PATIO ECI (Valdemoro)",
-        "template_xlsx": "plantilla patio.xlsx",
-        "master_xlsx": "maestro_matriculas.xlsx",          # Conductor -> Matricula/Ruta
-        "vehiculos_xlsx": "maestro_vehiculos.xlsx",        # Matricula -> Proveedor
+        "template_xlsx": p("plantilla patio.xlsx"),
+        "master_xlsx": p("maestro_matriculas.xlsx"),          # Conductor -> Matricula/Ruta
+        "vehiculos_xlsx": p("maestro_vehiculos.xlsx"),        # Matricula -> Proveedor
         "default_ruta": "V429",
         "cobro_ruta": {"V429": 32, "V429.1": 48, "V429.2": 29},
         "rutas": ["V429", "V429.1", "V429.2"],
@@ -32,10 +39,10 @@ OPERATIVAS = {
     }
 }
 DEFAULT_OPERATIVA = "PATIO_ECI"
-OUTPUT_XLSX = "salida_meribia.xlsx"
+OUTPUT_XLSX = p("salida_meribia.xlsx")
 
-KPI_FILE = "kpis_facturacion.csv"
-PROVEEDORES_FILE = "proveedores_master.csv"
+KPI_FILE = p("kpis_facturacion.csv")
+PROVEEDORES_FILE = p("proveedores_master.csv")
 
 # =========================
 # NUEVO: LINKS FLOTA
@@ -86,25 +93,18 @@ PROVEEDORES_DEFAULT = {
 # FLASK APP
 # =========================
 app = Flask(__name__)
-app.config["UPLOAD_FOLDER"] = "uploads"
+app.config["UPLOAD_FOLDER"] = p("uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
-# límite de subida (25MB)
+# (Opcional) limita tamaño del upload (ej. 25MB). Si tus PDFs pesan más, súbelo.
 app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
 
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "CAMBIA-ESTO-POR-UNA-FRASE-LARGA-123456")
 
-ALLOWED_EXTENSIONS = {"pdf"}
-
-def allowed_file(filename: str) -> bool:
-    if not filename:
-        return False
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
-
 # =========================
 # USUARIOS (SQLite)
 # =========================
-DB_USERS = "users.db"
+DB_USERS = p("users.db")
 
 def db():
     conn = sqlite3.connect(DB_USERS)
@@ -160,7 +160,8 @@ def modules_to_csv(mods: list):
     mods = [m.strip() for m in (mods or []) if m and m.strip()]
     valid = {m["id"] for m in MODULES}
     mods = [m for m in mods if m in valid]
-    out, seen = [], set()
+    out = []
+    seen = set()
     for m in mods:
         if m not in seen:
             out.append(m)
@@ -226,6 +227,7 @@ def set_modules(username: str, modules: list):
         raise ValueError("Usuario vacío")
     if username == "admin":
         return
+
     modules_csv = modules_to_csv(modules)
     with db() as conn:
         if not conn.execute("SELECT username FROM users WHERE username=?", (username,)).fetchone():
@@ -466,9 +468,9 @@ def load_vehiculo_map(path: str) -> dict:
     mp = {}
     for _, r in df.iterrows():
         m = key_plate(r.get("Matricula", ""))
-        p = key_name(r.get("Proveedor", ""))
+        pr = key_name(r.get("Proveedor", ""))
         if m:
-            mp[m] = p
+            mp[m] = pr
     return mp
 
 def save_vehiculo_map(path: str, rows: list):
@@ -485,20 +487,20 @@ def save_vehiculo_map(path: str, rows: list):
 
     for row in rows:
         m = key_plate(row.get("Matricula", ""))
-        p = key_name(row.get("Proveedor", ""))
-        if not m or not p:
+        pr = key_name(row.get("Proveedor", ""))
+        if not m or not pr:
             continue
         if m in idx:
-            df.at[idx[m], "Proveedor"] = p
+            df.at[idx[m], "Proveedor"] = pr
         else:
-            df = pd.concat([df, pd.DataFrame([{"Matricula": m, "Proveedor": p, "MatKey": m}])], ignore_index=True)
+            df = pd.concat([df, pd.DataFrame([{"Matricula": m, "Proveedor": pr, "MatKey": m}])], ignore_index=True)
             idx[m] = len(df) - 1
 
     df = df.drop(columns=["MatKey"], errors="ignore")
     df.to_excel(path, index=False)
 
 # =========================
-# PARSEO PDF + AGRUPACIÓN
+# PARSEO PDF + AGRUPACIÓN (robusto)
 # =========================
 def consignatario_guess_from_transportista(tr: str) -> str:
     up = str(tr).upper()
@@ -515,9 +517,17 @@ def consignatario_guess_from_transportista(tr: str) -> str:
 def parse_and_group(pdf_path: str):
     lines = []
     with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            txt = page.extract_text() or ""
-            for ln in txt.splitlines():
+        for i, page in enumerate(pdf.pages):
+            try:
+                # Extract “rápido”. Si falla, fallback simple.
+                txt = page.extract_text(x_tolerance=2, y_tolerance=2) or ""
+                if not txt.strip():
+                    txt = page.extract_text_simple() or ""
+            except Exception as e:
+                print(f"[WARN] PDF page {i+1} parse failed: {e}")
+                txt = ""
+
+            for ln in (txt.splitlines() if txt else []):
                 ln = ln.strip()
                 if not ln:
                     continue
@@ -562,7 +572,7 @@ def parse_and_group(pdf_path: str):
     return grouped.to_dict(orient="records")
 
 # =========================
-# MAESTRO Conductor -> Matricula/Ruta
+# MAESTRO Conductor -> Matricula/Ruta (maestro_matriculas.xlsx)
 # =========================
 def ensure_master_exists(master_path: str):
     if os.path.exists(master_path):
@@ -870,7 +880,7 @@ def admin_users_delete():
         return render_template("users.html", users=list_users(), modules=MODULES, ok=None, error=str(e))
 
 # =========================
-# API FACTURACIÓN
+# API FACTURACIÓN (PROTEGIDA)
 # =========================
 @app.route("/proveedores", methods=["GET"])
 @login_required
@@ -912,29 +922,17 @@ def upload():
 
     f = request.files.get("pdf")
     if not f:
-        return jsonify({"error": "No se recibió PDF (request.files vacío). Asegúrate de seleccionar un PDF."}), 400
+        return jsonify({"error": "No se recibió PDF"}), 400
 
-    if not allowed_file(f.filename):
-        return jsonify({"error": f"Archivo inválido: {f.filename}. Solo se permite .pdf"}), 400
+    # filename seguro
+    filename = secure_filename(f.filename or "archivo.pdf")
+    if not filename.lower().endswith(".pdf"):
+        filename += ".pdf"
 
-    safe_name = secure_filename(f.filename)
-    stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    final_name = f"{stamp}_{safe_name}"
-    path = os.path.join(app.config["UPLOAD_FOLDER"], final_name)
+    path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    f.save(path)
 
-    try:
-        f.save(path)
-    except Exception as e:
-        return jsonify({"error": f"No pude guardar el PDF en uploads/: {e}"}), 400
-
-    try:
-        rows = parse_and_group(path)
-    except Exception as e:
-        tb = traceback.format_exc()
-        return jsonify({
-            "error": f"Error leyendo/parsing el PDF: {e}",
-            "trace": tb[-2000:]  # recorta
-        }), 400
+    rows = parse_and_group(path)
 
     for r in rows:
         r["ConductorKey"] = key_name(r.get("Conductor", ""))
@@ -1007,30 +1005,7 @@ def export():
 
     return send_file(out, as_attachment=True)
 
-# ---- KPIs: JSON y XLSX (para que no te salgan 404) ----
-@app.route("/kpis/json", methods=["GET"])
-@login_required
-@module_required("facturacion_patio")
-def kpis_json():
-    if not os.path.exists(KPI_FILE):
-        return jsonify({"kpis": []})
-    df = pd.read_csv(KPI_FILE, sep=";")
-    # orden por fecha asc
-    if "fecha" in df.columns:
-        df = df.sort_values("fecha")
-    return jsonify({"kpis": df.to_dict(orient="records")})
-
-@app.route("/kpis/xlsx", methods=["GET"])
-@login_required
-@module_required("facturacion_patio")
-def kpis_xlsx():
-    if not os.path.exists(KPI_FILE):
-        return jsonify({"error": "No hay KPIs todavía."}), 400
-    df = pd.read_csv(KPI_FILE, sep=";")
-    out = "kpis_facturacion.xlsx"
-    df.to_excel(out, index=False)
-    return send_file(out, as_attachment=True)
-
+# ✅ KPIs: descarga CSV (ya estaba)
 @app.route("/kpis/download", methods=["GET"])
 @login_required
 @module_required("facturacion_patio")
@@ -1038,6 +1013,28 @@ def kpis_download():
     if not os.path.exists(KPI_FILE):
         return jsonify({"error": "No hay KPIs todavía."}), 400
     return send_file(KPI_FILE, as_attachment=True)
+
+# ✅ KPIs JSON (lo pedía tu frontend / logs)
+@app.route("/kpis/json", methods=["GET"])
+@login_required
+@module_required("facturacion_patio")
+def kpis_json():
+    if not os.path.exists(KPI_FILE):
+        return jsonify({"kpis": []})
+    df = pd.read_csv(KPI_FILE, sep=";")
+    return jsonify({"kpis": df.to_dict(orient="records")})
+
+# ✅ KPIs XLSX (lo pedía tu frontend / logs)
+@app.route("/kpis/xlsx", methods=["GET"])
+@login_required
+@module_required("facturacion_patio")
+def kpis_xlsx():
+    if not os.path.exists(KPI_FILE):
+        return jsonify({"error": "No hay KPIs todavía."}), 400
+    df = pd.read_csv(KPI_FILE, sep=";")
+    out = p("kpis_facturacion.xlsx")
+    df.to_excel(out, index=False)
+    return send_file(out, as_attachment=True)
 
 @app.route("/me")
 @login_required
