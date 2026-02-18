@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MOVE OUTSIDE | Personal</title>
+  <style>
+    body{margin:0;font-family:system-ui;background:#0b1220;color:#eaf0ff}
+    header{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:#111a30;border-bottom:1px solid rgba(255,255,255,.08)}
+    .btn{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#eaf0ff;padding:9px 12px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-block}
+    .wrap{max-width:1100px;margin:18px auto;padding:0 16px}
+    .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:16px;margin-bottom:14px}
+    .small{color:#9fb2d6;font-size:12px}
+    .ok{color:#bff5d2}
+    .err{color:#ffd9a0;white-space:pre-wrap}
+    input[type="file"]{width:100%;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.20);color:#eaf0ff}
+  </style>
+</head>
+
+<body>
+  <header>
+    <div>
+      <div style="font-weight:800">Personal</div>
+      <div class="small">Conductores / operativos · altas masivas · futuro escalable</div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a class="btn" href="/">Volver al dashboard</a>
+      <a class="btn" href="/logout">Cerrar sesión</a>
+    </div>
+  </header>
+
+  <div class="wrap">
+    {% if ok %}<div class="card"><div class="ok">✅ {{ ok }}</div></div>{% endif %}
+    {% if error %}<div class="card"><div class="err">⚠️ {{ error }}</div></div>{% endif %}
+
+    <div class="card">
+      <h3 style="margin:0 0 8px 0;">Importar conductores (CSV o XLSX)</h3>
+      <div class="small" style="margin-bottom:10px;">
+        Columnas soportadas: <b>username, pin</b>, nombre, dni, telefono, email, direccion, empresa<br/>
+        - Si un username ya existe, se omite (no pisa).<br/>
+        - El PIN se guarda como contraseña (role=driver) para el login del conductor (cuando lo conectemos).
+      </div>
+
+      {% if is_admin %}
+        <form method="POST" action="/personal/import" enctype="multipart/form-data">
+          <input type="file" name="file" accept=".csv,.xlsx,.xls" required>
+          <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn" type="submit">Importar</button>
+            <a class="btn" href="/">Volver</a>
+          </div>
+        </form>
+      {% else %}
+        <div class="small">Solo el admin puede importar personal.</div>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>
