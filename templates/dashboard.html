@@ -8,7 +8,6 @@
     body{margin:0;font-family:system-ui;background:#0b1220;color:#eaf0ff}
     header{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:#111a30;border-bottom:1px solid rgba(255,255,255,.08)}
     .brand{display:flex;align-items:center;gap:12px}
-
     .brand img{
       width:174px;height:174px;object-fit:contain;
       background:rgba(255,255,255,.06);
@@ -16,7 +15,6 @@
       padding:10px;
       border:1px solid rgba(255,255,255,.10)
     }
-
     .brand h1{font-size:16px;margin:0}
     .brand .sub{font-size:12px;color:#9fb2d6;margin-top:3px}
     .btn{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#eaf0ff;padding:9px 12px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-block}
@@ -65,7 +63,11 @@
       {% for m in modules %}
         <div class="card">
           <span class="tag">
-            {% if m.id == "realtime" %}Panel{% elif m.id == "facturacion_patio" %}Facturación{% else %}Flota{% endif %}
+            {% if m.id == "realtime" %}Panel
+            {% elif m.id == "facturacion_patio" %}Facturación
+            {% elif m.id == "flota" %}Flota
+            {% elif m.id == "personal" %}Personal
+            {% else %}Módulo{% endif %}
           </span>
 
           <h2>{{ m.label }}</h2>
@@ -81,6 +83,10 @@
           {% elif m.id == "flota" %}
             <p>Inventario de flota: Maestro (Sheet) + Listín (WebApp).</p>
             <a class="btn" href="/flota">Entrar</a>
+
+          {% elif m.id == "personal" %}
+            <p>Gestión de conductores/operativos: altas masivas y base para roles futuros.</p>
+            <a class="btn" href="/personal">Entrar</a>
           {% endif %}
         </div>
       {% endfor %}

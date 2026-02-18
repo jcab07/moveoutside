@@ -18,6 +18,7 @@ from werkzeug.utils import secure_filename
 # PATHS ABSOLUTOS (evita problemas en server)
 # =========================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 def p(*parts):  # helper path join
     return os.path.join(BASE_DIR, *parts)
 
@@ -57,6 +58,7 @@ MODULES = [
     {"id": "realtime", "label": "Control Panel (Tiempo real)"},
     {"id": "facturacion_patio", "label": "Facturación Patio ECI → Meribia"},
     {"id": "flota", "label": "Inventario Flota (Listín + Maestro)"},
+    {"id": "personal", "label": "Personal (Conductores / Operativos)"},  # ✅ NUEVO
 ]
 
 # =========================
@@ -96,9 +98,7 @@ app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = p("uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
-# (Opcional) limita tamaño del upload (ej. 25MB). Si tus PDFs pesan más, súbelo.
 app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
-
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "CAMBIA-ESTO-POR-UNA-FRASE-LARGA-123456")
 
 # =========================
@@ -187,8 +187,9 @@ def create_user(username: str, password: str, role: str, modules: list):
     if len(password or "") < 6:
         raise ValueError("La contraseña debe tener al menos 6 caracteres")
 
-    role = "admin" if role == "admin" else "user"
-    modules_csv = "" if role == "admin" else modules_to_csv(modules)
+    # ✅ ahora soporta driver
+    role = role if role in ("admin", "user", "driver") else "user"
+    modules_csv = "" if role in ("admin", "driver") else modules_to_csv(modules)
 
     with db() as conn:
         if conn.execute("SELECT username FROM users WHERE username=?", (username,)).fetchone():
@@ -226,6 +227,11 @@ def set_modules(username: str, modules: list):
     if not username:
         raise ValueError("Usuario vacío")
     if username == "admin":
+        return
+
+    # drivers no usan módulos de portal
+    user = get_user(username)
+    if user and user["role"] == "driver":
         return
 
     modules_csv = modules_to_csv(modules)
@@ -275,12 +281,21 @@ def module_required(module_id: str):
                 return redirect(url_for("login"))
             if session.get("role") == "admin":
                 return fn(*args, **kwargs)
+
             allowed = session.get("modules_list", []) or []
             if module_id not in allowed:
                 abort(403)
             return fn(*args, **kwargs)
         return wrapper
     return deco
+
+# =========================
+# ERROR HANDLER 403 (forbidden.html)
+# =========================
+@app.errorhandler(403)
+def forbidden(_):
+    # “module” puede venir vacío: es ok
+    return render_template("forbidden.html", module=request.path), 403
 
 # =========================
 # LOGIN ROUTES
@@ -292,10 +307,10 @@ def login():
 
     if request.method == "POST":
         u = (request.form.get("username", "") or "").strip()
-        p = (request.form.get("password", "") or "").strip()
+        p_ = (request.form.get("password", "") or "").strip()
 
         user = get_user(u)
-        if user and check_password_hash(user["password_hash"], p):
+        if user and check_password_hash(user["password_hash"], p_):
             session.clear()
             session["logged_in"] = True
             session["username"] = user["username"]
@@ -519,7 +534,6 @@ def parse_and_group(pdf_path: str):
     with pdfplumber.open(pdf_path) as pdf:
         for i, page in enumerate(pdf.pages):
             try:
-                # Extract “rápido”. Si falla, fallback simple.
                 txt = page.extract_text(x_tolerance=2, y_tolerance=2) or ""
                 if not txt.strip():
                     txt = page.extract_text_simple() or ""
@@ -780,6 +794,67 @@ def append_kpi(date_iso: str, operativa: str, rows: list, cobro_ruta: dict,
         w.writerow([date_iso, operativa, int(es_festivo), conductores, round(total_horas,2), total_cobro, round(total_coste,2), manual_count])
 
 # =========================
+# ✅ PERSONAL: IMPORTACIÓN CONDUCTORES (CSV/XLSX)
+# =========================
+def read_people_file(file_storage):
+    """
+    Soporta CSV o XLSX.
+    Columnas soportadas:
+    username, pin, nombre, dni, telefono, email, direccion, empresa
+    """
+    filename = (file_storage.filename or "").lower()
+    if filename.endswith(".xlsx") or filename.endswith(".xls"):
+        df = pd.read_excel(file_storage)
+    else:
+        # CSV (auto-detect separador)
+        content = file_storage.read()
+        file_storage.seek(0)
+        try:
+            df = pd.read_csv(file_storage, sep=None, engine="python")
+        except Exception:
+            # fallback ; (muy típico en ES)
+            file_storage.seek(0)
+            df = pd.read_csv(file_storage, sep=";")
+
+    # normaliza columnas
+    df.columns = [str(c).strip().lower() for c in df.columns]
+    return df
+
+def import_drivers_from_df(df: pd.DataFrame):
+    required = ["username", "pin"]
+    for c in required:
+        if c not in df.columns:
+            raise ValueError(f"Falta columna obligatoria: {c}")
+
+    created = 0
+    skipped = 0
+    errors = []
+
+    for idx, row in df.iterrows():
+        try:
+            username = str(row.get("username", "")).strip()
+            pin = str(row.get("pin", "")).strip()
+            if not username or not pin:
+                skipped += 1
+                continue
+            if len(pin) < 6:
+                raise ValueError("PIN mínimo 6 dígitos/caracteres")
+
+            # si ya existe: skip
+            if get_user(username):
+                skipped += 1
+                continue
+
+            # guardamos como usuario role=driver, password = pin
+            create_user(username=username, password=pin, role="driver", modules=[])
+
+            created += 1
+        except Exception as e:
+            errors.append(f"Fila {idx+2}: {e}")
+
+    return created, skipped, errors
+
+# =========================
 # PORTAL PAGES
 # =========================
 @app.route("/")
@@ -823,6 +898,33 @@ def flota_sheet():
 @module_required("flota")
 def flota_listin():
     return redirect(FLOTA_LISTIN_URL)
+
+# ✅ NUEVO: PERSONAL
+@app.route("/personal")
+@login_required
+@module_required("personal")
+def personal_home():
+    is_admin = (session.get("role") == "admin")
+    return render_template("personal.html", is_admin=is_admin, ok=None, error=None)
+
+@app.route("/personal/import", methods=["POST"])
+@admin_required
+def personal_import():
+    try:
+        f = request.files.get("file")
+        if not f:
+            raise ValueError("No se recibió archivo")
+
+        df = read_people_file(f)
+        created, skipped, errors = import_drivers_from_df(df)
+
+        ok = f"Importación finalizada: creados {created}, omitidos {skipped}."
+        if errors:
+            ok += f" Con {len(errors)} errores (revísalos abajo)."
+
+        return render_template("personal.html", is_admin=True, ok=ok, error="\n".join(errors) if errors else None)
+    except Exception as e:
+        return render_template("personal.html", is_admin=True, ok=None, error=str(e))
 
 # =========================
 # ADMIN USERS PANEL
@@ -924,7 +1026,6 @@ def upload():
     if not f:
         return jsonify({"error": "No se recibió PDF"}), 400
 
-    # filename seguro
     filename = secure_filename(f.filename or "archivo.pdf")
     if not filename.lower().endswith(".pdf"):
         filename += ".pdf"
@@ -1005,7 +1106,6 @@ def export():
 
     return send_file(out, as_attachment=True)
 
-# ✅ KPIs: descarga CSV (ya estaba)
 @app.route("/kpis/download", methods=["GET"])
 @login_required
 @module_required("facturacion_patio")
@@ -1014,7 +1114,6 @@ def kpis_download():
         return jsonify({"error": "No hay KPIs todavía."}), 400
     return send_file(KPI_FILE, as_attachment=True)
 
-# ✅ KPIs JSON (lo pedía tu frontend / logs)
 @app.route("/kpis/json", methods=["GET"])
 @login_required
 @module_required("facturacion_patio")
@@ -1024,7 +1123,6 @@ def kpis_json():
     df = pd.read_csv(KPI_FILE, sep=";")
     return jsonify({"kpis": df.to_dict(orient="records")})
 
-# ✅ KPIs XLSX (lo pedía tu frontend / logs)
 @app.route("/kpis/xlsx", methods=["GET"])
 @login_required
 @module_required("facturacion_patio")

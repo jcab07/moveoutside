@@ -47,7 +47,6 @@
       padding: 16px;
     }
 
-    /* ✅ Ajuste: añadimos 2 botones KPI sin romper el layout */
     .controls{
       display:grid;
       grid-template-columns: 1fr 1.2fr 0.7fr 0.9fr auto auto auto auto auto;
@@ -129,7 +128,6 @@
     }
     .switch input{ transform: scale(1.2); }
 
-    /* ✅ Modal KPI */
     .modal{
       position: fixed; inset: 0;
       background: rgba(0,0,0,.55);
@@ -171,7 +169,12 @@
           </div>
         </div>
       </div>
-      <span class="pill" id="totalsPill" style="display:none;"></span>
+
+      <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;">
+        <a class="btn" href="/">Volver al dashboard</a>
+        <a class="btn" href="/logout">Cerrar sesión</a>
+        <span class="pill" id="totalsPill" style="display:none;"></span>
+      </div>
     </div>
 
     <div class="card">
@@ -214,7 +217,6 @@
         <span class="pill" id="statusPill">Listo para importar.</span>
       </div>
 
-      <!-- ✅ FILTRO -->
       <div class="filterbar" id="filterBar" style="display:none;">
         <div>
           <label>Filtrar por</label>
@@ -256,7 +258,6 @@
 
   </div>
 
-  <!-- ✅ MODAL HISTORIAL KPI -->
   <div class="modal" id="kpiModal" aria-hidden="true">
     <div class="box" role="dialog" aria-modal="true" aria-label="Historial KPI">
       <div class="row">
@@ -301,7 +302,6 @@
 
   let warnedManual = false;
 
-  // filtro
   let filteredIdx = null;
   let filterTimer = null;
 
@@ -424,7 +424,6 @@
     }
   }
 
-  // ===== filtro =====
   function debouncedFilter(){
     if(filterTimer) clearTimeout(filterTimer);
     filterTimer = setTimeout(applyFilter, 120);
@@ -481,11 +480,7 @@
       const matGhost = r.MatriculaFromMaster ? "ghost" : "";
 
       const provVal = String(r.Proveedor||"").toUpperCase().trim();
-      const provOptions = []
-        .concat(PROVEEDORES.map(p => `<option value="${p}" ${p===provVal ? "selected" : ""}>${p}</option>`))
-        .concat([`<option value="__ADD__">+ Añadir proveedor…</option>`])
-        .join("");
-
+      const provOptions = PROVEEDORES.map(p => `<option value="${p}" ${p===provVal ? "selected" : ""}>${p}</option>`).join("");
       const rutaOptions = RUTAS.map(x => `<option ${x===r.Ruta ? "selected":""}>${x}</option>`).join("");
 
       const tr = document.createElement("tr");
@@ -511,7 +506,7 @@
         </td>
 
         <td>
-          <select onchange="onProveedorChange(${idx}, this.value)">
+          <select onchange="rows[${idx}].Proveedor=this.value; rows[${idx}].OverrideCoste=false; rows[${idx}].CosteManual=null; renderAll();">
             ${provOptions}
           </select>
           ${PROV_FULL[provVal] ? "" : `<div class="hint">⚠️ Sin tarifa: crea/elige proveedor</div>`}
@@ -534,18 +529,6 @@
     document.getElementById("tblWrap").style.display = rows.length ? "" : "none";
     document.getElementById("filterBar").style.display = rows.length ? "" : "none";
     updateSummaryOnly();
-  }
-
-  function onProveedorChange(idx, value){
-    if(value === "__ADD__"){
-      alert("Para añadir proveedor: lo activamos en la siguiente mejora (alta + tarifa). Por ahora elige uno existente.");
-      renderAll();
-      return;
-    }
-    rows[idx].Proveedor = value;
-    rows[idx].OverrideCoste = false;
-    rows[idx].CosteManual = null;
-    renderAll();
   }
 
   async function upload(){
@@ -624,12 +607,8 @@
     renderAll();
   }
 
-  // ✅ KPI XLSX
-  function downloadKpiXlsx(){
-    window.open("/kpis/xlsx", "_blank");
-  }
+  function downloadKpiXlsx(){ window.open("/kpis/xlsx", "_blank"); }
 
-  // ✅ Historial KPI (modal)
   async function openKpiHistory(){
     const modal = document.getElementById("kpiModal");
     const tbody = document.getElementById("kpiTbody");
@@ -645,7 +624,7 @@
         tbody.innerHTML = `<tr><td colspan="8">${data.error}</td></tr>`;
         return;
       }
-      const rowsKpi = data.rows || [];
+      const rowsKpi = data.kpis || [];
       if(!rowsKpi.length){
         tbody.innerHTML = `<tr><td colspan="8">No hay KPIs todavía. Exporta un XLSX para generar el primer registro.</td></tr>`;
         return;
@@ -677,7 +656,6 @@
     modal.setAttribute("aria-hidden", "true");
   }
 
-  // cerrar modal al click fuera
   document.addEventListener("click", (e)=>{
     const modal = document.getElementById("kpiModal");
     if(modal && modal.style.display === "flex" && e.target === modal){
