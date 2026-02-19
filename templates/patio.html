@@ -47,11 +47,19 @@
       padding: 16px;
     }
 
+    /* ✅ Ahora: 2 filas (inputs arriba, botones abajo) */
     .controls{
       display:grid;
-      grid-template-columns: 1fr 1.2fr 0.7fr 0.9fr auto auto auto auto auto;
+      grid-template-columns: 1fr 1.2fr 0.7fr 0.9fr;
       gap:12px;
       align-items:end;
+    }
+    .actions-row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:12px;
+      justify-content:flex-end;
     }
 
     label{ font-size: 12px; color: var(--muted); display:block; margin-bottom:6px; }
@@ -60,7 +68,6 @@
       border-radius: 12px; border:1px solid var(--border);
       background: rgba(0,0,0,.20); color: var(--text); outline:none;
     }
-    input[type="file"]{ padding: 8px 10px; }
     input[type="date"]{ color-scheme: dark; }
 
     .btn{
@@ -128,6 +135,26 @@
     }
     .switch input{ transform: scale(1.2); }
 
+    /* ✅ File picker bonito */
+    .file-row{
+      display:flex;
+      gap:10px;
+      align-items:center;
+    }
+    .file-row input[type="file"]{
+      position:absolute;
+      left:-9999px;
+      width:1px;height:1px;opacity:0;
+    }
+    .file-name{
+      font-size:12px;
+      color:var(--muted);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width:520px;
+    }
+
     .modal{
       position: fixed; inset: 0;
       background: rgba(0,0,0,.55);
@@ -153,6 +180,12 @@
     .modal small{ color: var(--muted); }
     .modal .tbl{ max-height: 70vh; overflow:auto; border-radius: 12px; border:1px solid var(--border); }
     .modal table{ min-width: 900px; }
+
+    @media (max-width: 1100px){
+      .controls{ grid-template-columns: 1fr; }
+      .file-name{ max-width: 92vw; }
+      .actions-row{ justify-content:flex-start; }
+    }
   </style>
 </head>
 
@@ -165,7 +198,7 @@
         <div>
           <h1>Facturación → Meribia</h1>
           <div class="sub">
-            1) Selecciona operativa y PDF · 2) Ajusta horas / matrículas / proveedor · 3) (Opcional) Festivo · 4) Exportar XLSX.
+            1) Selecciona operativa y PDF · 2) Ajusta horas / matrículas / proveedor · 3) (Opcional) Tarifa · 4) Exportar XLSX.
           </div>
         </div>
       </div>
@@ -178,6 +211,7 @@
     </div>
 
     <div class="card">
+      <!-- ✅ Inputs fila 1 -->
       <div class="controls">
         <div>
           <label>Operativa</label>
@@ -190,7 +224,11 @@
 
         <div>
           <label>PDF diario (ECI)</label>
-          <input type="file" id="pdf" accept="application/pdf" />
+          <div class="file-row">
+            <input type="file" id="pdf" accept="application/pdf" />
+            <label class="btn" for="pdf">Seleccionar PDF</label>
+            <span id="pdfName" class="file-name">Ningún archivo seleccionado</span>
+          </div>
         </div>
 
         <div>
@@ -202,10 +240,13 @@
           <label>Festivo / Domingo</label>
           <div class="switch">
             <input type="checkbox" id="festivo" onchange="renderAll()">
-            <span>Aplicar tarifas festivo</span>
+            <span>Tarifa</span>
           </div>
         </div>
+      </div>
 
+      <!-- ✅ Botones fila 2 (para que no se muevan por nombre largo) -->
+      <div class="actions-row">
         <button class="btn primary" onclick="upload()">Subir PDF</button>
         <button class="btn" id="exportBtn" onclick="exportXlsx()" disabled>Exportar XLSX</button>
         <button class="btn" onclick="downloadKpiXlsx()">KPI XLSX</button>
@@ -305,10 +346,33 @@
   let filteredIdx = null;
   let filterTimer = null;
 
+  // ✅ Nombre PDF base para export (misma base que el PDF)
+  let currentPdfBaseName = "";
+
   const today = new Date().toISOString().slice(0,10);
   document.getElementById("date").value = today;
 
-  function cobroHora(ruta){ return Number(COBRO_RUTA[ruta] ?? 0); }
+  // ✅ UI: muestra nombre del PDF seleccionado
+  const pdfInput = document.getElementById("pdf");
+  const pdfNameEl = document.getElementById("pdfName");
+  pdfInput.addEventListener("change", () => {
+    const f = pdfInput.files && pdfInput.files[0];
+    if(!f){
+      pdfNameEl.textContent = "Ningún archivo seleccionado";
+      currentPdfBaseName = "";
+      return;
+    }
+    pdfNameEl.textContent = f.name;
+    currentPdfBaseName = (f.name || "").replace(/\.pdf$/i, "");
+  });
+
+  // ✅ Festivo: cobro cliente SIEMPRE 48€/h (sin importar ruta/proveedor)
+  function cobroHora(ruta){
+    const fest = document.getElementById("festivo").checked;
+    if(fest) return 48;
+    return Number(COBRO_RUTA[ruta] ?? 0);
+  }
+
   function toNum(v){ const n = Number(v); return isNaN(n) ? 0 : n; }
   function isPropio(prov){ return String(prov||"").toUpperCase().trim() === "PIBEJO"; }
 
@@ -395,6 +459,9 @@
     const pills = [];
     pills.push({type:"ok", text:`Conductores: ${rows.length}`});
     pills.push({type:"ok", text:`Horas: ${t.totalHoras.toFixed(2)}`});
+    if(document.getElementById("festivo").checked){
+      pills.push({type:"ok", text:`Tarifa festivo activa: cobro cliente = 48€/h`});
+    }
     if(t.sinTarifa>0) pills.push({type:"warn", text:`Hay ${t.sinTarifa} filas SIN TARIFA (coste 0).`});
     if(t.manualCount>0) pills.push({type:"warn", text:`ATENCIÓN: ${t.manualCount} costes manuales`});
 
@@ -552,6 +619,11 @@
       return;
     }
 
+    // ✅ Fecha sugerida desde FechaInicioJornada (editable)
+    if (data.suggested_date) {
+      document.getElementById("date").value = data.suggested_date;
+    }
+
     COBRO_RUTA = data.cobro_ruta || COBRO_RUTA;
     RUTAS = data.rutas || RUTAS;
 
@@ -587,7 +659,13 @@
     const res = await fetch("/export", {
       method:"POST",
       headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ rows, date, operativa: currentOperativa, festivo })
+      body: JSON.stringify({
+        rows,
+        date,
+        operativa: currentOperativa,
+        festivo,
+        pdf_name: currentPdfBaseName || ""
+      })
     });
 
     const ct = res.headers.get("content-type") || "";
@@ -600,7 +678,11 @@
     const blob = await res.blob();
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `MERIBIA_${currentOperativa}_${date}.xlsx`;
+
+    // ✅ Mismo nombre del PDF (solo cambia extensión)
+    const fallback = `MERIBIA_${currentOperativa}_${date}`;
+    a.download = `${(currentPdfBaseName || fallback)}.xlsx`;
+
     a.click();
 
     rows = rows.map(r => ({...r, MatriculaFromMaster: true}));
@@ -667,3 +749,4 @@
 </script>
 </body>
 </html>
+

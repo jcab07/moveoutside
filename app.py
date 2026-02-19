@@ -356,7 +356,33 @@ def key_plate(raw: str) -> str:
     s = re.sub(r"[^A-Z0-9]", "", s)
     return s
 
+# ✅ Parse fecha "domingo 8 febrero 2026 7:30:00" -> datetime
+MESES = {
+    "enero":1, "febrero":2, "marzo":3, "abril":4, "mayo":5, "junio":6,
+    "julio":7, "agosto":8, "septiembre":9, "setiembre":9,
+    "octubre":10, "noviembre":11, "diciembre":12
+}
+def parse_fecha_inicio_from_line(line: str):
+    # línea normalizada (espacios)
+    # Ej: "domingo 8 febrero 2026 7:30:00 domingo 8 febrero 2026 16:00:00 Festiva Mañana ..."
+    m = re.match(r"^\s*[a-záéíóúüñ]+\s+(\d{1,2})\s+([a-záéíóúüñ]+)\s+(\d{4})\s+(\d{1,2}:\d{2}:\d{2})\s+", line, flags=re.IGNORECASE)
+    if not m:
+        return None
+    d = int(m.group(1))
+    mes_name = m.group(2).lower()
+    y = int(m.group(3))
+    t = m.group(4)
+    mes = MESES.get(mes_name)
+    if not mes:
+        return None
+    hh, mm, ss = [int(x) for x in t.split(":")]
+    try:
+        return datetime.datetime(y, mes, d, hh, mm, ss)
+    except Exception:
+        return None
+
 def parse_pdf_line_flex(line: str):
+    # Captura números al final: ... 8,50 0,50 8  (o ... 8,50 8)
     m = re.search(r"(\d+[.,]\d+|\d+)\s+(\d+[.,]\d+|\d+)\s+(\d+[.,]\d+|\d+)\s*$", line)
     if m:
         horas_reales = parse_spanish_number(m.group(3))
@@ -368,10 +394,15 @@ def parse_pdf_line_flex(line: str):
         horas_reales = parse_spanish_number(m2.group(2))
         core = line[:m2.start()].strip()
 
-    if "Diaria" not in core:
+    # ✅ Antes solo aceptaba "Diaria". Ahora aceptamos "Diaria" o "Festiva"
+    if ("Diaria" not in core) and ("Festiva" not in core):
         return None
 
-    _, post = core.split("Diaria", 1)
+    if "Diaria" in core:
+        _, post = core.split("Diaria", 1)
+    else:
+        _, post = core.split("Festiva", 1)
+
     parts = post.strip().split()
     rest = " ".join(parts[1:]).strip() if parts else ""
     return {"rest": rest, "horas_reales": float(horas_reales)}
@@ -545,13 +576,24 @@ def parse_and_group(pdf_path: str):
                 ln = ln.strip()
                 if not ln:
                     continue
-                if ln.startswith("FechaInicioJornada"):
-                    continue
+                # ✅ No descartamos el header aquí, lo gestionamos abajo si hace falta
                 lines.append(ln)
 
     rows = []
+    fechas = []
+
     for ln in lines:
         ln2 = cleanup_numbers(normalize_line(ln))
+
+        # header: "FechaInicioJornada ..." -> lo ignoramos como fila
+        if ln2.startswith("FechaInicioJornada"):
+            continue
+
+        # ✅ Extrae fecha sugerida (FechaInicioJornada) de cada línea válida
+        dt = parse_fecha_inicio_from_line(ln2)
+        if dt:
+            fechas.append(dt)
+
         d = parse_pdf_line_flex(ln2)
         if not d:
             continue
@@ -567,7 +609,7 @@ def parse_and_group(pdf_path: str):
         })
 
     if not rows:
-        return []
+        return [], None
 
     df = pd.DataFrame(rows)
     df["ConductorKey"] = df["Conductor"].apply(key_name)
@@ -583,7 +625,13 @@ def parse_and_group(pdf_path: str):
         .reset_index()
         .sort_values("Conductor")
     )
-    return grouped.to_dict(orient="records")
+
+    fecha_sugerida = None
+    if fechas:
+        # usamos la mínima (primera jornada del PDF)
+        fecha_sugerida = min(fechas).date().isoformat()
+
+    return grouped.to_dict(orient="records"), fecha_sugerida
 
 # =========================
 # MAESTRO Conductor -> Matricula/Ruta (maestro_matriculas.xlsx)
@@ -754,7 +802,13 @@ def generate_meribia_xlsx(
         ws.cell(r, 2).value = proveedor
 
         ws.cell(r, COL_AE_HORAS_REALES).value = horas
-        ws.cell(r, COL_AF_PRECIO_CLIENTE).value = float(cobro_ruta.get(ruta, 0) or 0)
+
+        # ✅ MUY IMPORTANTE: Si es festivo/domingo => cobramos 48€/h SIEMPRE
+        if es_festivo:
+            ws.cell(r, COL_AF_PRECIO_CLIENTE).value = 48.0
+        else:
+            ws.cell(r, COL_AF_PRECIO_CLIENTE).value = float(cobro_ruta.get(ruta, 0) or 0)
+
         ws.cell(r, COL_AH_MATRICULA).value = row.get("Matricula", "")
         ws.cell(r, COL_AI_REMOLQUE).value = str(remolque_ref)
 
@@ -777,10 +831,17 @@ def append_kpi(date_iso: str, operativa: str, rows: list, cobro_ruta: dict,
                rutas_validas: list, es_festivo: bool, total_horas: float, total_coste: float):
     total_cobro = 0.0
     for r in rows:
-        ruta = str(r.get("Ruta", "V429")).strip()
         horas = float(r.get("HorasReales", 0) or 0)
-        tarifa = float(cobro_ruta.get(ruta, 0) or 0)
+
+        # ✅ festivo/domingo => 48€/h para TODOS
+        if es_festivo:
+            tarifa = 48.0
+        else:
+            ruta = str(r.get("Ruta", "V429")).strip()
+            tarifa = float(cobro_ruta.get(ruta, 0) or 0)
+
         total_cobro += horas * tarifa
+
     total_cobro = round(total_cobro, 2)
 
     manual_count = sum(1 for r in rows if bool(r.get("OverrideCoste")))
@@ -1033,7 +1094,7 @@ def upload():
     path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
     f.save(path)
 
-    rows = parse_and_group(path)
+    rows, fecha_sugerida = parse_and_group(path)
 
     for r in rows:
         r["ConductorKey"] = key_name(r.get("Conductor", ""))
@@ -1064,6 +1125,8 @@ def upload():
         "operativa": operativa,
         "proveedores": prov_list,
         "proveedores_full": prov_map,
+        "fecha_sugerida": fecha_sugerida,  # ✅
+        "pdf_filename": filename            # ✅ por si lo quieres usar después
     })
 
 @app.route("/export", methods=["POST"])
@@ -1086,6 +1149,10 @@ def export():
 
     prov_map = load_proveedores()
 
+    # ✅ nombre del PDF para sugerir nombre de descarga
+    pdf_name = str(payload.get("pdf_name", "") or "").strip()
+    pdf_base = re.sub(r"\.[^.]+$", "", pdf_name) if pdf_name else ""
+
     try:
         out, total_horas, total_coste = generate_meribia_xlsx(
             rows, date_iso, template_xlsx, es_festivo, prov_map,
@@ -1104,6 +1171,9 @@ def export():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+    # ✅ descarga con nombre del PDF si viene
+    if pdf_base:
+        return send_file(out, as_attachment=True, download_name=f"{pdf_base}.xlsx")
     return send_file(out, as_attachment=True)
 
 @app.route("/kpis/download", methods=["GET"])
