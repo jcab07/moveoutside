@@ -1,31 +1,12 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
+   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MOVE OUTSIDE | Dashboard</title>
-
   <style>
     body{margin:0;font-family:system-ui;background:#0b1220;color:#eaf0ff}
-    .wrap{max-width:1100px;margin:18px auto;padding:0 16px}
-
-    /* ✅ HEADER (con header.png como fondo) */
-    header{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      padding:16px 22px;
-      border-bottom:1px solid rgba(255,255,255,.08);
-
-      background-color:#111a30;
-      background-image:
-        linear-gradient(rgba(17,26,48,.75), rgba(17,26,48,.75)),
-        url("/static/header.png");
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
-    }
-
+    header{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:#111a30;border-bottom:1px solid rgba(255,255,255,.08)}
     .brand{display:flex;align-items:center;gap:12px}
     .brand img{
       width:174px;height:174px;object-fit:contain;
@@ -36,46 +17,14 @@
     }
     .brand h1{font-size:16px;margin:0}
     .brand .sub{font-size:12px;color:#9fb2d6;margin-top:3px}
-
-    .btn{
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(255,255,255,.06);
-      color:#eaf0ff;
-      padding:9px 12px;
-      border-radius:10px;
-      cursor:pointer;
-      text-decoration:none;
-      display:inline-block
-    }
-
+    .btn{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#eaf0ff;padding:9px 12px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-block}
+    .wrap{max-width:1100px;margin:18px auto;padding:0 16px}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+    .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:16px}
+    .card h2{margin:0 0 6px 0;font-size:15px}
+    .card p{margin:0 0 12px 0;color:#9fb2d6;font-size:12px;line-height:1.35}
+    .tag{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);font-size:12px;color:#eaf0ff}
     .top-actions{display:flex;gap:10px;align-items:center}
-
-    /* ✅ GRID 3 columnas + cards compactas */
-    .grid{
-      display:grid;
-      grid-template-columns:repeat(3, 1fr);
-      gap:12px;
-    }
-
-    .card{
-      background:rgba(255,255,255,.06);
-      border:1px solid rgba(255,255,255,.10);
-      border-radius:16px;
-      padding:12px;
-    }
-
-    .card h2{margin:0 0 6px 0;font-size:14px}
-    .card p{margin:0 0 10px 0;color:#9fb2d6;font-size:11px;line-height:1.35}
-
-    .tag{
-      display:inline-block;
-      padding:4px 10px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(255,255,255,.06);
-      font-size:12px;
-      color:#eaf0ff
-    }
 
     .credit{
       position:fixed; right:14px; bottom:10px;
@@ -83,15 +32,10 @@
       pointer-events:none; user-select:none; z-index:9999;
     }
 
-    /* ✅ RESPONSIVE: 2 cols tablet, 1 col móvil */
-    @media (max-width:1000px){
-      .grid{grid-template-columns:repeat(2,1fr)}
+    @media (max-width:800px){
       header{flex-direction:column;align-items:flex-start;gap:12px}
-      .brand img{width:140px;height:140px}
-    }
-
-    @media (max-width:700px){
       .grid{grid-template-columns:1fr}
+      .brand img{width:140px;height:140px}
     }
   </style>
 </head>
@@ -143,6 +87,32 @@
           {% elif m.id == "personal" %}
             <p>Gestión de conductores/operativos: altas masivas y base para roles futuros.</p>
             <a class="btn" href="/personal">Entrar</a>
+
+          {# ✅ NUEVOS MÓDULOS (solo botón + texto placeholder) #}
+
+          {% elif m.id == "rutas" %}
+            <p>Importación/planificación de rutas (ECI + otros). (En construcción)</p>
+            <a class="btn" href="/rutas">Entrar</a>
+
+          {% elif m.id == "planificacion" %}
+            <p>Borradores/plantillas de planificación. (En construcción)</p>
+            <a class="btn" href="/planificacion">Entrar</a>
+
+          {% elif m.id == "clientes" %}
+            <p>Fichas de clientes + contactos. (En construcción)</p>
+            <a class="btn" href="/clientes">Entrar</a>
+
+          {% elif m.id == "proveedores" %}
+            <p>Fichas de proveedores + contactos. (En construcción)</p>
+            <a class="btn" href="/proveedores">Entrar</a>
+
+          {% elif m.id == "vehiculos" %}
+            <p>Docs/ITV/tacógrafo/ATP y vencimientos. (En construcción)</p>
+            <a class="btn" href="/vehiculos">Entrar</a>
+
+          {% else %}
+            <p>Módulo en construcción.</p>
+            <a class="btn" href="/">Entrar</a>
           {% endif %}
         </div>
       {% endfor %}
@@ -156,4 +126,3 @@
   <div class="credit">desarrollado por Juan Carlos Aguilar Baiz</div>
 </body>
 </html>
-
