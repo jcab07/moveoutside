@@ -6,7 +6,31 @@
   <title>MOVE OUTSIDE | Dashboard</title>
   <style>
     body{margin:0;font-family:system-ui;background:#0b1220;color:#eaf0ff}
-    header{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:#111a30;border-bottom:1px solid rgba(255,255,255,.08)}
+
+    /* ✅ Header con imagen de fondo header.png (SIN tocar tu estructura) */
+    header{
+      display:flex;justify-content:space-between;align-items:center;
+      padding:16px 22px;
+      background:#111a30;
+      border-bottom:1px solid rgba(255,255,255,.08);
+
+      position:relative;           /* ✅ necesario para ::before */
+      overflow:hidden;             /* ✅ recorta el fondo */
+    }
+    header::before{
+      content:"";
+      position:absolute; inset:0;
+      background:
+        linear-gradient(90deg, rgba(17,26,48,.92), rgba(17,26,48,.78)),
+        url("/static/header.png");
+      background-size:cover;
+      background-position:center;
+      background-repeat:no-repeat;
+      opacity:1;
+      pointer-events:none;
+    }
+    header > *{ position:relative; z-index:1; } /* ✅ el contenido queda encima del fondo */
+
     .brand{display:flex;align-items:center;gap:12px}
     .brand img{
       width:174px;height:174px;object-fit:contain;
