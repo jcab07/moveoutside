@@ -6,7 +6,23 @@
   <title>MOVE OUTSIDE | Dashboard</title>
   <style>
     body{margin:0;font-family:system-ui;background:#0b1220;color:#eaf0ff}
-    header{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:#111a30;border-bottom:1px solid rgba(255,255,255,.08)}
+    header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:16px 22px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+
+  /* ✅ Header gráfico (static/header.png) */
+  background-color:#111a30;
+  background-image:
+    linear-gradient(rgba(17,26,48,.75), rgba(17,26,48,.75)),
+    url("/static/header.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
     .brand{display:flex;align-items:center;gap:12px}
     .brand img{
       width:174px;height:174px;object-fit:contain;
