@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MOVE OUTSIDE | Planificación</title>
+  <style>
+    body{margin:0;font-family:system-ui;background:#0b1220;color:#eaf0ff}
+    header{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:#111a30;border-bottom:1px solid rgba(255,255,255,.08)}
+    .btn{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#eaf0ff;padding:9px 12px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-block}
+    .wrap{max-width:1200px;margin:18px auto;padding:0 16px}
+    .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:16px;margin-bottom:14px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px 8px;border-top:1px solid rgba(255,255,255,.08);vertical-align:top}
+    th{color:#9fb2d6;font-size:12px;text-align:left}
+    .small{color:#9fb2d6;font-size:12px}
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <div style="font-weight:800">Planificación</div>
+    <div class="small">Borradores / plantillas guardadas</div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a class="btn" href="/">Volver</a>
+    <a class="btn" href="/logout">Cerrar sesión</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:10%;">ID</th>
+          <th style="width:55%;">Título</th>
+          <th style="width:20%;">Creado</th>
+          <th style="width:15%;">Abrir</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>#{{ r.id }}</td>
+          <td>{{ r.titulo }}</td>
+          <td class="small">{{ r.created_at }} · {{ r.created_by }}</td>
+          <td><a class="btn" href="/planificacion/{{ r.id }}">Ver</a></td>
+        </tr>
+        {% endfor %}
+        {% if rows|length == 0 %}
+        <tr><td colspan="4" class="small">No hay planificaciones aún.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>

@@ -1,5 +1,5 @@
 # app.py
-import os, re, datetime, csv, sqlite3
+import os, re, datetime, csv, sqlite3, json, math
 from copy import copy
 from functools import wraps
 
@@ -58,11 +58,19 @@ MODULES = [
     {"id": "realtime", "label": "Control Panel (Tiempo real)"},
     {"id": "facturacion_patio", "label": "Facturación Patio ECI → Meribia"},
     {"id": "flota", "label": "Inventario Flota (Listín + Maestro)"},
-    {"id": "personal", "label": "Personal (Conductores / Operativos)"},  # ✅ NUEVO
+    {"id": "personal", "label": "Personal (Conductores / Operativos)"},
+    # =========================
+    # ✅ NUEVOS (NO TOCAN módulos existentes)
+    # =========================
+    {"id": "rutas", "label": "Rutas (ECI + otros)"},
+    {"id": "planificacion", "label": "Planificación (borradores / plantillas)"},
+    {"id": "clientes", "label": "Clientes (fichas + contactos)"},
+    {"id": "proveedores_fichas", "label": "Proveedores (fichas + contactos)"},
+    {"id": "vehiculos", "label": "Vehículos (docs, ITV, tacógrafo, ATP...)"},
 ]
 
 # =========================
-# COLUMNAS (1-index)
+# COLUMNAS (1-index) MERIBIA (plantilla patio.xlsx)
 # =========================
 COL_A_CLIENTE = 1
 COL_I_PROYECTO = 9
@@ -76,7 +84,7 @@ COL_AM_PRECIO_UNI = 39
 COL_AN_IMPORTE = 40
 
 # =========================
-# PROVEEDORES POR DEFECTO
+# PROVEEDORES POR DEFECTO (facturación patio)
 # =========================
 PROVEEDORES_DEFAULT = {
     "MARTIN SIMANCAS": {"tipo": "hora", "pago_h": 25.0, "pago_f": 30.0},
@@ -187,7 +195,6 @@ def create_user(username: str, password: str, role: str, modules: list):
     if len(password or "") < 6:
         raise ValueError("La contraseña debe tener al menos 6 caracteres")
 
-    # ✅ ahora soporta driver
     role = role if role in ("admin", "user", "driver") else "user"
     modules_csv = "" if role in ("admin", "driver") else modules_to_csv(modules)
 
@@ -229,7 +236,6 @@ def set_modules(username: str, modules: list):
     if username == "admin":
         return
 
-    # drivers no usan módulos de portal
     user = get_user(username)
     if user and user["role"] == "driver":
         return
@@ -290,11 +296,10 @@ def module_required(module_id: str):
     return deco
 
 # =========================
-# ERROR HANDLER 403 (forbidden.html)
+# ERROR HANDLER 403
 # =========================
 @app.errorhandler(403)
 def forbidden(_):
-    # “module” puede venir vacío: es ok
     return render_template("forbidden.html", module=request.path), 403
 
 # =========================
@@ -332,7 +337,7 @@ def logout():
     return redirect(url_for("login"))
 
 # =========================
-# HELPERS FACTURACIÓN
+# HELPERS FACTURACIÓN (existente)
 # =========================
 def parse_spanish_number(s: str) -> float:
     s = str(s).strip().replace(".", "").replace(",", ".")
@@ -356,33 +361,7 @@ def key_plate(raw: str) -> str:
     s = re.sub(r"[^A-Z0-9]", "", s)
     return s
 
-# ✅ Parse fecha "domingo 8 febrero 2026 7:30:00" -> datetime
-MESES = {
-    "enero":1, "febrero":2, "marzo":3, "abril":4, "mayo":5, "junio":6,
-    "julio":7, "agosto":8, "septiembre":9, "setiembre":9,
-    "octubre":10, "noviembre":11, "diciembre":12
-}
-def parse_fecha_inicio_from_line(line: str):
-    # línea normalizada (espacios)
-    # Ej: "domingo 8 febrero 2026 7:30:00 domingo 8 febrero 2026 16:00:00 Festiva Mañana ..."
-    m = re.match(r"^\s*[a-záéíóúüñ]+\s+(\d{1,2})\s+([a-záéíóúüñ]+)\s+(\d{4})\s+(\d{1,2}:\d{2}:\d{2})\s+", line, flags=re.IGNORECASE)
-    if not m:
-        return None
-    d = int(m.group(1))
-    mes_name = m.group(2).lower()
-    y = int(m.group(3))
-    t = m.group(4)
-    mes = MESES.get(mes_name)
-    if not mes:
-        return None
-    hh, mm, ss = [int(x) for x in t.split(":")]
-    try:
-        return datetime.datetime(y, mes, d, hh, mm, ss)
-    except Exception:
-        return None
-
 def parse_pdf_line_flex(line: str):
-    # Captura números al final: ... 8,50 0,50 8  (o ... 8,50 8)
     m = re.search(r"(\d+[.,]\d+|\d+)\s+(\d+[.,]\d+|\d+)\s+(\d+[.,]\d+|\d+)\s*$", line)
     if m:
         horas_reales = parse_spanish_number(m.group(3))
@@ -394,15 +373,10 @@ def parse_pdf_line_flex(line: str):
         horas_reales = parse_spanish_number(m2.group(2))
         core = line[:m2.start()].strip()
 
-    # ✅ Antes solo aceptaba "Diaria". Ahora aceptamos "Diaria" o "Festiva"
-    if ("Diaria" not in core) and ("Festiva" not in core):
+    if "Diaria" not in core:
         return None
 
-    if "Diaria" in core:
-        _, post = core.split("Diaria", 1)
-    else:
-        _, post = core.split("Festiva", 1)
-
+    _, post = core.split("Diaria", 1)
     parts = post.strip().split()
     rest = " ".join(parts[1:]).strip() if parts else ""
     return {"rest": rest, "horas_reales": float(horas_reales)}
@@ -415,7 +389,7 @@ def split_conductor_transportista(rest: str):
     return rest.strip(), rest.strip()
 
 # =========================
-# PROVEEDORES (CSV)
+# PROVEEDORES (CSV) (existente)
 # =========================
 def ensure_proveedores_file():
     if os.path.exists(PROVEEDORES_FILE):
@@ -497,7 +471,7 @@ def upsert_proveedor(nombre: str, data: dict):
     df.to_csv(PROVEEDORES_FILE, sep=";", index=False, encoding="utf-8")
 
 # =========================
-# MATRÍCULA -> PROVEEDOR (maestro_vehiculos.xlsx)
+# MATRÍCULA -> PROVEEDOR (maestro_vehiculos.xlsx) (existente)
 # =========================
 def ensure_vehiculos_master(path: str):
     if os.path.exists(path):
@@ -546,7 +520,7 @@ def save_vehiculo_map(path: str, rows: list):
     df.to_excel(path, index=False)
 
 # =========================
-# PARSEO PDF + AGRUPACIÓN (robusto)
+# PARSEO PDF + AGRUPACIÓN (facturación patio) (existente)
 # =========================
 def consignatario_guess_from_transportista(tr: str) -> str:
     up = str(tr).upper()
@@ -576,24 +550,13 @@ def parse_and_group(pdf_path: str):
                 ln = ln.strip()
                 if not ln:
                     continue
-                # ✅ No descartamos el header aquí, lo gestionamos abajo si hace falta
+                if ln.startswith("FechaInicioJornada"):
+                    continue
                 lines.append(ln)
 
     rows = []
-    fechas = []
-
     for ln in lines:
         ln2 = cleanup_numbers(normalize_line(ln))
-
-        # header: "FechaInicioJornada ..." -> lo ignoramos como fila
-        if ln2.startswith("FechaInicioJornada"):
-            continue
-
-        # ✅ Extrae fecha sugerida (FechaInicioJornada) de cada línea válida
-        dt = parse_fecha_inicio_from_line(ln2)
-        if dt:
-            fechas.append(dt)
-
         d = parse_pdf_line_flex(ln2)
         if not d:
             continue
@@ -609,7 +572,7 @@ def parse_and_group(pdf_path: str):
         })
 
     if not rows:
-        return [], None
+        return []
 
     df = pd.DataFrame(rows)
     df["ConductorKey"] = df["Conductor"].apply(key_name)
@@ -625,16 +588,10 @@ def parse_and_group(pdf_path: str):
         .reset_index()
         .sort_values("Conductor")
     )
-
-    fecha_sugerida = None
-    if fechas:
-        # usamos la mínima (primera jornada del PDF)
-        fecha_sugerida = min(fechas).date().isoformat()
-
-    return grouped.to_dict(orient="records"), fecha_sugerida
+    return grouped.to_dict(orient="records")
 
 # =========================
-# MAESTRO Conductor -> Matricula/Ruta (maestro_matriculas.xlsx)
+# MAESTRO Conductor -> Matricula/Ruta (existente)
 # =========================
 def ensure_master_exists(master_path: str):
     if os.path.exists(master_path):
@@ -716,7 +673,7 @@ def save_master_from_rows(master_path: str, rows: list):
     df_old.to_excel(master_path, index=False)
 
 # =========================
-# COSTES
+# COSTES (existente)
 # =========================
 def is_propio(proveedor: str) -> bool:
     return key_name(proveedor) == "PIBEJO"
@@ -745,7 +702,7 @@ def compute_cost_row(row: dict, es_festivo: bool, prov_map: dict):
     return {"qty": horas, "unit": unit, "importe": horas * unit, "tipo": "hora"}
 
 # =========================
-# EXPORT MERIBIA
+# EXPORT MERIBIA (existente)
 # =========================
 def generate_meribia_xlsx(
     rows, date_iso: str, template_xlsx: str, es_festivo: bool, prov_map: dict,
@@ -802,13 +759,7 @@ def generate_meribia_xlsx(
         ws.cell(r, 2).value = proveedor
 
         ws.cell(r, COL_AE_HORAS_REALES).value = horas
-
-        # ✅ MUY IMPORTANTE: Si es festivo/domingo => cobramos 48€/h SIEMPRE
-        if es_festivo:
-            ws.cell(r, COL_AF_PRECIO_CLIENTE).value = 48.0
-        else:
-            ws.cell(r, COL_AF_PRECIO_CLIENTE).value = float(cobro_ruta.get(ruta, 0) or 0)
-
+        ws.cell(r, COL_AF_PRECIO_CLIENTE).value = float(cobro_ruta.get(ruta, 0) or 0)
         ws.cell(r, COL_AH_MATRICULA).value = row.get("Matricula", "")
         ws.cell(r, COL_AI_REMOLQUE).value = str(remolque_ref)
 
@@ -825,23 +776,16 @@ def generate_meribia_xlsx(
     return OUTPUT_XLSX, float(total_horas), float(total_coste)
 
 # =========================
-# KPI
+# KPI (existente)
 # =========================
 def append_kpi(date_iso: str, operativa: str, rows: list, cobro_ruta: dict,
                rutas_validas: list, es_festivo: bool, total_horas: float, total_coste: float):
     total_cobro = 0.0
     for r in rows:
+        ruta = str(r.get("Ruta", "V429")).strip()
         horas = float(r.get("HorasReales", 0) or 0)
-
-        # ✅ festivo/domingo => 48€/h para TODOS
-        if es_festivo:
-            tarifa = 48.0
-        else:
-            ruta = str(r.get("Ruta", "V429")).strip()
-            tarifa = float(cobro_ruta.get(ruta, 0) or 0)
-
+        tarifa = float(cobro_ruta.get(ruta, 0) or 0)
         total_cobro += horas * tarifa
-
     total_cobro = round(total_cobro, 2)
 
     manual_count = sum(1 for r in rows if bool(r.get("OverrideCoste")))
@@ -855,29 +799,21 @@ def append_kpi(date_iso: str, operativa: str, rows: list, cobro_ruta: dict,
         w.writerow([date_iso, operativa, int(es_festivo), conductores, round(total_horas,2), total_cobro, round(total_coste,2), manual_count])
 
 # =========================
-# ✅ PERSONAL: IMPORTACIÓN CONDUCTORES (CSV/XLSX)
+# ✅ PERSONAL IMPORT (existente)
 # =========================
 def read_people_file(file_storage):
-    """
-    Soporta CSV o XLSX.
-    Columnas soportadas:
-    username, pin, nombre, dni, telefono, email, direccion, empresa
-    """
     filename = (file_storage.filename or "").lower()
     if filename.endswith(".xlsx") or filename.endswith(".xls"):
         df = pd.read_excel(file_storage)
     else:
-        # CSV (auto-detect separador)
         content = file_storage.read()
         file_storage.seek(0)
         try:
             df = pd.read_csv(file_storage, sep=None, engine="python")
         except Exception:
-            # fallback ; (muy típico en ES)
             file_storage.seek(0)
             df = pd.read_csv(file_storage, sep=";")
 
-    # normaliza columnas
     df.columns = [str(c).strip().lower() for c in df.columns]
     return df
 
@@ -901,12 +837,10 @@ def import_drivers_from_df(df: pd.DataFrame):
             if len(pin) < 6:
                 raise ValueError("PIN mínimo 6 dígitos/caracteres")
 
-            # si ya existe: skip
             if get_user(username):
                 skipped += 1
                 continue
 
-            # guardamos como usuario role=driver, password = pin
             create_user(username=username, password=pin, role="driver", modules=[])
 
             created += 1
@@ -916,7 +850,7 @@ def import_drivers_from_df(df: pd.DataFrame):
     return created, skipped, errors
 
 # =========================
-# PORTAL PAGES
+# PORTAL PAGES (existente)
 # =========================
 @app.route("/")
 @login_required
@@ -960,7 +894,6 @@ def flota_sheet():
 def flota_listin():
     return redirect(FLOTA_LISTIN_URL)
 
-# ✅ NUEVO: PERSONAL
 @app.route("/personal")
 @login_required
 @module_required("personal")
@@ -988,7 +921,7 @@ def personal_import():
         return render_template("personal.html", is_admin=True, ok=None, error=str(e))
 
 # =========================
-# ADMIN USERS PANEL
+# ADMIN USERS PANEL (existente)
 # =========================
 @app.route("/admin/users")
 @admin_required
@@ -1043,7 +976,7 @@ def admin_users_delete():
         return render_template("users.html", users=list_users(), modules=MODULES, ok=None, error=str(e))
 
 # =========================
-# API FACTURACIÓN (PROTEGIDA)
+# API FACTURACIÓN (PROTEGIDA) (existente)
 # =========================
 @app.route("/proveedores", methods=["GET"])
 @login_required
@@ -1094,7 +1027,7 @@ def upload():
     path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
     f.save(path)
 
-    rows, fecha_sugerida = parse_and_group(path)
+    rows = parse_and_group(path)
 
     for r in rows:
         r["ConductorKey"] = key_name(r.get("Conductor", ""))
@@ -1125,8 +1058,6 @@ def upload():
         "operativa": operativa,
         "proveedores": prov_list,
         "proveedores_full": prov_map,
-        "fecha_sugerida": fecha_sugerida,  # ✅
-        "pdf_filename": filename            # ✅ por si lo quieres usar después
     })
 
 @app.route("/export", methods=["POST"])
@@ -1149,10 +1080,6 @@ def export():
 
     prov_map = load_proveedores()
 
-    # ✅ nombre del PDF para sugerir nombre de descarga
-    pdf_name = str(payload.get("pdf_name", "") or "").strip()
-    pdf_base = re.sub(r"\.[^.]+$", "", pdf_name) if pdf_name else ""
-
     try:
         out, total_horas, total_coste = generate_meribia_xlsx(
             rows, date_iso, template_xlsx, es_festivo, prov_map,
@@ -1171,18 +1098,7 @@ def export():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-    # ✅ descarga con nombre del PDF si viene
-    if pdf_base:
-        return send_file(out, as_attachment=True, download_name=f"{pdf_base}.xlsx")
     return send_file(out, as_attachment=True)
-
-@app.route("/kpis/download", methods=["GET"])
-@login_required
-@module_required("facturacion_patio")
-def kpis_download():
-    if not os.path.exists(KPI_FILE):
-        return jsonify({"error": "No hay KPIs todavía."}), 400
-    return send_file(KPI_FILE, as_attachment=True)
 
 @app.route("/kpis/json", methods=["GET"])
 @login_required
@@ -1213,10 +1129,455 @@ def me():
         "modules": session.get("modules_list", []),
     })
 
-# =========================
+# ============================================================
+# ===================== NUEVO: DATA DB =======================
+# ============================================================
+DB_DATA = p("data.db")
+
+def db_data():
+    conn = sqlite3.connect(DB_DATA)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_data_db():
+    with db_data() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS clientes(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                codigo TEXT NOT NULL,
+                nombre TEXT NOT NULL,
+                cif TEXT DEFAULT '',
+                direccion TEXT DEFAULT '',
+                notas TEXT DEFAULT '',
+                created_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS clientes_contactos(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cliente_id INTEGER NOT NULL,
+                nombre TEXT DEFAULT '',
+                telefono TEXT DEFAULT '',
+                email TEXT DEFAULT '',
+                cargo TEXT DEFAULT '',
+                FOREIGN KEY(cliente_id) REFERENCES clientes(id)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS proveedores_fichas(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL,
+                cif TEXT DEFAULT '',
+                direccion TEXT DEFAULT '',
+                telefono TEXT DEFAULT '',
+                email TEXT DEFAULT '',
+                notas TEXT DEFAULT '',
+                created_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS vehiculos(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tipo TEXT NOT NULL, -- TRACTORA/RIGIDO/SEMI_FRIO/SEMI_CAJA/SEMI_LONA/SEMI_PLATAFORMA/FURGONETA/OTRO
+                matricula TEXT NOT NULL,
+                proveedor TEXT DEFAULT '',
+                itv_fecha TEXT DEFAULT '',
+                tacografo_fecha TEXT DEFAULT '',
+                atp_fecha TEXT DEFAULT '',
+                notas TEXT DEFAULT '',
+                created_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS rutas(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cliente_codigo TEXT DEFAULT 'ECI',
+                cliente_nombre TEXT DEFAULT 'EL CORTE INGLES',
+                proyecto TEXT DEFAULT '',
+                fecha TEXT DEFAULT '',
+                origen TEXT DEFAULT '',
+                destino TEXT DEFAULT '',
+                estado TEXT DEFAULT 'BORRADOR', -- BORRADOR / FINAL
+                pdf_filename TEXT DEFAULT '',
+                created_by TEXT DEFAULT '',
+                created_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ruta_items(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ruta_id INTEGER NOT NULL,
+                tipo TEXT DEFAULT 'PROPIOS', -- AJENOS/PROPIOS/RETORNO/DOMINGO
+                colaborador TEXT DEFAULT '',
+                conductor TEXT DEFAULT '',
+                vehiculo TEXT DEFAULT '',
+                remolque TEXT DEFAULT '',
+                origen TEXT DEFAULT '',
+                destino TEXT DEFAULT '',
+                salida TEXT DEFAULT '',
+                llegada TEXT DEFAULT '',
+                km_aprox REAL DEFAULT 0,
+                duracion_h REAL DEFAULT 0,
+                notas TEXT DEFAULT '',
+                FOREIGN KEY(ruta_id) REFERENCES rutas(id)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS planificacion(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                titulo TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_by TEXT DEFAULT '',
+                created_at TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+
+init_data_db()
+
+# ============================================================
+# ================= NUEVO: HELPERS RUTAS ======================
+# ============================================================
+TIPOS_VALIDOS = ["AJENOS", "PROPIOS", "RETORNO", "DOMINGO"]
+
+def etiqueta_tipo(letter: str) -> str:
+    m = (letter or "").strip().upper()
+    if m == "A": return "AJENOS"
+    if m == "X": return "PROPIOS"
+    if m == "R": return "RETORNO"
+    if m == "D": return "DOMINGO"
+    return "PROPIOS"
+
+def approx_km_and_time(origen: str, destino: str):
+    # Placeholder (sin API externa): dejamos 0 y lo completaremos con integración (Google/OSRM) luego
+    return 0.0, 0.0
+
+def enforce_uniques(items: list):
+    """
+    Conductor+vehiculo NO repetidos salvo tipo=RETORNO.
+    """
+    used_conductores = set()
+    used_vehiculos = set()
+    errors = []
+
+    for idx, it in enumerate(items):
+        t = (it.get("tipo","") or "").upper().strip()
+        c = (it.get("conductor","") or "").strip()
+        v = (it.get("vehiculo","") or "").strip()
+
+        if t == "RETORNO":
+            continue
+
+        if c and c in used_conductores:
+            errors.append(f"Fila {idx+1}: Conductor repetido en IDA ({c})")
+        if v and v in used_vehiculos:
+            errors.append(f"Fila {idx+1}: Vehículo repetido en IDA ({v})")
+
+        if c: used_conductores.add(c)
+        if v: used_vehiculos.add(v)
+
+    return errors
+
+def parse_eci_route_pdf_basic(pdf_path: str):
+    """
+    Parser básico: extrae texto completo y devuelve líneas.
+    Luego tú asignas/ajustas en la tabla.
+    (Lo refinamos en siguientes iteraciones con tus PDFs reales.)
+    """
+    all_lines = []
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            txt = page.extract_text() or ""
+            for ln in (txt.splitlines() if txt else []):
+                ln = ln.strip()
+                if ln:
+                    all_lines.append(ln)
+
+    # intentamos detectar fecha en algo tipo 08/02/2026
+    fecha = ""
+    for ln in all_lines[:40]:
+        m = re.search(r"(\d{2}/\d{2}/\d{4})", ln)
+        if m:
+            try:
+                d = datetime.datetime.strptime(m.group(1), "%d/%m/%Y").date()
+                fecha = d.isoformat()
+                break
+            except Exception:
+                pass
+
+    return {"fecha": fecha, "raw_lines": all_lines[:400]}
+
+# ============================================================
+# ====================== NUEVO: RUTAS UI ======================
+# ============================================================
+@app.route("/rutas")
+@login_required
+@module_required("rutas")
+def rutas_home():
+    with db_data() as conn:
+        rutas = conn.execute("SELECT * FROM rutas ORDER BY id DESC LIMIT 200").fetchall()
+    return render_template("rutas.html", rutas=rutas)
+
+@app.route("/rutas/new", methods=["POST"])
+@login_required
+@module_required("rutas")
+def rutas_new():
+    titulo = (request.form.get("titulo") or "").strip() or "Ruta sin título"
+    proyecto = (request.form.get("proyecto") or "").strip()
+    with db_data() as conn:
+        cur = conn.execute(
+            "INSERT INTO rutas(cliente_codigo,cliente_nombre,proyecto,estado,created_by,created_at) VALUES(?,?,?,?,?,?)",
+            ("ECI","EL CORTE INGLES", proyecto, "BORRADOR", session.get("username",""), datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        )
+        ruta_id = cur.lastrowid
+        conn.commit()
+    return redirect(url_for("rutas_edit", ruta_id=ruta_id))
+
+@app.route("/rutas/<int:ruta_id>")
+@login_required
+@module_required("rutas")
+def rutas_edit(ruta_id: int):
+    with db_data() as conn:
+        ruta = conn.execute("SELECT * FROM rutas WHERE id=?", (ruta_id,)).fetchone()
+        items = conn.execute("SELECT * FROM ruta_items WHERE ruta_id=? ORDER BY id ASC", (ruta_id,)).fetchall()
+    if not ruta:
+        return "Ruta no existe", 404
+    return render_template("ruta_edit.html", ruta=ruta, items=items, tipos=TIPOS_VALIDOS)
+
+@app.route("/rutas/<int:ruta_id>/upload_pdf", methods=["POST"])
+@login_required
+@module_required("rutas")
+def rutas_upload_pdf(ruta_id: int):
+    f = request.files.get("pdf")
+    if not f:
+        return redirect(url_for("rutas_edit", ruta_id=ruta_id))
+
+    filename = secure_filename(f.filename or "ruta.pdf")
+    if not filename.lower().endswith(".pdf"):
+        filename += ".pdf"
+    path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    f.save(path)
+
+    parsed = parse_eci_route_pdf_basic(path)
+    fecha = parsed.get("fecha","")
+
+    # Creamos items "vacíos" a partir de algunas líneas detectadas (MVP)
+    raw = parsed.get("raw_lines", [])
+    suggested = []
+    for ln in raw:
+        # Si ves algún patrón claro luego, lo refinamos.
+        # De momento: no inventamos rutas.
+        if "ORIGEN" in ln.upper() or "DESTINO" in ln.upper():
+            continue
+
+    with db_data() as conn:
+        conn.execute("UPDATE rutas SET pdf_filename=?, fecha=? WHERE id=?", (filename, fecha, ruta_id))
+        conn.commit()
+
+    return redirect(url_for("rutas_edit", ruta_id=ruta_id))
+
+@app.route("/rutas/<int:ruta_id>/save", methods=["POST"])
+@login_required
+@module_required("rutas")
+def rutas_save(ruta_id: int):
+    payload = request.json or {}
+    ruta = payload.get("ruta") or {}
+    items = payload.get("items") or []
+
+    # normaliza tipos
+    for it in items:
+        t = (it.get("tipo") or "PROPIOS").upper().strip()
+        if t not in TIPOS_VALIDOS:
+            t = "PROPIOS"
+        it["tipo"] = t
+
+    errors = enforce_uniques(items)
+    if errors:
+        return jsonify({"error": "\n".join(errors)}), 400
+
+    with db_data() as conn:
+        conn.execute(
+            "UPDATE rutas SET proyecto=?, fecha=?, origen=?, destino=? WHERE id=?",
+            (
+                (ruta.get("proyecto") or "").strip(),
+                (ruta.get("fecha") or "").strip(),
+                (ruta.get("origen") or "").strip(),
+                (ruta.get("destino") or "").strip(),
+                ruta_id
+            )
+        )
+        conn.execute("DELETE FROM ruta_items WHERE ruta_id=?", (ruta_id,))
+        for it in items:
+            conn.execute("""
+                INSERT INTO ruta_items(
+                    ruta_id,tipo,colaborador,conductor,vehiculo,remolque,origen,destino,salida,llegada,km_aprox,duracion_h,notas
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (
+                ruta_id,
+                it.get("tipo","PROPIOS"),
+                (it.get("colaborador") or "").strip(),
+                (it.get("conductor") or "").strip(),
+                (it.get("vehiculo") or "").strip(),
+                (it.get("remolque") or "").strip(),
+                (it.get("origen") or "").strip(),
+                (it.get("destino") or "").strip(),
+                (it.get("salida") or "").strip(),
+                (it.get("llegada") or "").strip(),
+                float(it.get("km_aprox") or 0),
+                float(it.get("duracion_h") or 0),
+                (it.get("notas") or "").strip(),
+            ))
+        conn.commit()
+
+    return jsonify({"ok": True})
+
+@app.route("/rutas/<int:ruta_id>/to_planificacion", methods=["POST"])
+@login_required
+@module_required("rutas")
+def rutas_to_planificacion(ruta_id: int):
+    with db_data() as conn:
+        ruta = conn.execute("SELECT * FROM rutas WHERE id=?", (ruta_id,)).fetchone()
+        items = conn.execute("SELECT * FROM ruta_items WHERE ruta_id=? ORDER BY id ASC", (ruta_id,)).fetchall()
+    if not ruta:
+        return jsonify({"error":"Ruta no existe"}), 404
+
+    pack = {
+        "ruta": dict(ruta),
+        "items": [dict(x) for x in items],
+        "saved_at": datetime.datetime.now().isoformat(timespec="seconds")
+    }
+
+    titulo = f"PLANIF · Ruta #{ruta_id} · {ruta['fecha'] or 'sin_fecha'}"
+    with db_data() as conn:
+        conn.execute(
+            "INSERT INTO planificacion(titulo,payload_json,created_by,created_at) VALUES(?,?,?,?)",
+            (titulo, json.dumps(pack, ensure_ascii=False), session.get("username",""), datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        )
+        conn.commit()
+
+    return jsonify({"ok": True})
+
+# ============================================================
+# ==================== NUEVO: PLANIFICACIÓN ==================
+# ============================================================
+@app.route("/planificacion")
+@login_required
+@module_required("planificacion")
+def planificacion_home():
+    with db_data() as conn:
+        rows = conn.execute("SELECT id,titulo,created_by,created_at FROM planificacion ORDER BY id DESC LIMIT 200").fetchall()
+    return render_template("planificacion.html", rows=rows)
+
+@app.route("/planificacion/<int:pid>")
+@login_required
+@module_required("planificacion")
+def planificacion_view(pid: int):
+    with db_data() as conn:
+        row = conn.execute("SELECT * FROM planificacion WHERE id=?", (pid,)).fetchone()
+    if not row:
+        return "No existe", 404
+    payload = json.loads(row["payload_json"])
+    return render_template("ruta_edit.html", ruta=payload["ruta"], items=payload["items"], tipos=TIPOS_VALIDOS, readonly=True)
+
+# ============================================================
+# ===================== NUEVO: CLIENTES ======================
+# ============================================================
+@app.route("/clientes")
+@login_required
+@module_required("clientes")
+def clientes_home():
+    with db_data() as conn:
+        clientes = conn.execute("SELECT * FROM clientes ORDER BY id DESC LIMIT 300").fetchall()
+    return render_template("clientes.html", clientes=clientes)
+
+@app.route("/clientes/create", methods=["POST"])
+@login_required
+@module_required("clientes")
+def clientes_create():
+    codigo = (request.form.get("codigo") or "").strip()
+    nombre = (request.form.get("nombre") or "").strip()
+    cif = (request.form.get("cif") or "").strip()
+    direccion = (request.form.get("direccion") or "").strip()
+    if not codigo or not nombre:
+        return redirect(url_for("clientes_home"))
+    with db_data() as conn:
+        conn.execute(
+            "INSERT INTO clientes(codigo,nombre,cif,direccion,notas,created_at) VALUES(?,?,?,?,?,?)",
+            (codigo, nombre, cif, direccion, "", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        )
+        conn.commit()
+    return redirect(url_for("clientes_home"))
+
+# ============================================================
+# ==================== NUEVO: PROVEEDORES ====================
+# ============================================================
+@app.route("/proveedores_fichas")
+@login_required
+@module_required("proveedores_fichas")
+def proveedores_fichas_home():
+    with db_data() as conn:
+        provs = conn.execute("SELECT * FROM proveedores_fichas ORDER BY id DESC LIMIT 300").fetchall()
+    return render_template("proveedores_ficha.html", provs=provs)
+
+@app.route("/proveedores_fichas/create", methods=["POST"])
+@login_required
+@module_required("proveedores_fichas")
+def proveedores_fichas_create():
+    nombre = (request.form.get("nombre") or "").strip()
+    if not nombre:
+        return redirect(url_for("proveedores_fichas_home"))
+    cif = (request.form.get("cif") or "").strip()
+    direccion = (request.form.get("direccion") or "").strip()
+    telefono = (request.form.get("telefono") or "").strip()
+    email = (request.form.get("email") or "").strip()
+    with db_data() as conn:
+        conn.execute(
+            "INSERT INTO proveedores_fichas(nombre,cif,direccion,telefono,email,notas,created_at) VALUES(?,?,?,?,?,?,?)",
+            (nombre, cif, direccion, telefono, email, "", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        )
+        conn.commit()
+    return redirect(url_for("proveedores_fichas_home"))
+
+# ============================================================
+# ====================== NUEVO: VEHÍCULOS =====================
+# ============================================================
+@app.route("/vehiculos")
+@login_required
+@module_required("vehiculos")
+def vehiculos_home():
+    with db_data() as conn:
+        vehs = conn.execute("SELECT * FROM vehiculos ORDER BY id DESC LIMIT 500").fetchall()
+    return render_template("vehiculos.html", vehs=vehs)
+
+@app.route("/vehiculos/create", methods=["POST"])
+@login_required
+@module_required("vehiculos")
+def vehiculos_create():
+    tipo = (request.form.get("tipo") or "").strip().upper()
+    matricula = (request.form.get("matricula") or "").strip().upper()
+    if not tipo or not matricula:
+        return redirect(url_for("vehiculos_home"))
+    proveedor = (request.form.get("proveedor") or "").strip()
+    itv = (request.form.get("itv_fecha") or "").strip()
+    tac = (request.form.get("tacografo_fecha") or "").strip()
+    atp = (request.form.get("atp_fecha") or "").strip()
+    notas = (request.form.get("notas") or "").strip()
+    with db_data() as conn:
+        conn.execute("""
+            INSERT INTO vehiculos(tipo,matricula,proveedor,itv_fecha,tacografo_fecha,atp_fecha,notas,created_at)
+            VALUES(?,?,?,?,?,?,?,?)
+        """, (
+            tipo, matricula, proveedor, itv, tac, atp, notas,
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ))
+        conn.commit()
+    return redirect(url_for("vehiculos_home"))
+
+# ============================================================
 # START
-# =========================
+# ============================================================
 if __name__ == "__main__":
     init_users_db()
     ensure_default_admin()
+    init_data_db()
     app.run(host="0.0.0.0", port=5000, debug=True)

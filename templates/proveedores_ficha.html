@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MOVE OUTSIDE | Proveedores</title>
+  <style>
+    body{margin:0;font-family:system-ui;background:#0b1220;color:#eaf0ff}
+    header{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:#111a30;border-bottom:1px solid rgba(255,255,255,.08)}
+    .btn{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#eaf0ff;padding:9px 12px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-block}
+    .wrap{max-width:1200px;margin:18px auto;padding:0 16px}
+    .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:16px;margin-bottom:14px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px 8px;border-top:1px solid rgba(255,255,255,.08);vertical-align:top}
+    th{color:#9fb2d6;font-size:12px;text-align:left}
+    .small{color:#9fb2d6;font-size:12px}
+    input{padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.20);color:#eaf0ff}
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <div style="font-weight:800">Proveedores</div>
+    <div class="small">Fichas proveedor + datos base</div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a class="btn" href="/">Volver</a>
+    <a class="btn" href="/logout">Cerrar sesión</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="card">
+    <h3 style="margin:0 0 10px 0;">Nuevo proveedor</h3>
+    <form method="POST" action="/proveedores_fichas/create" style="display:flex;gap:10px;flex-wrap:wrap">
+      <input name="nombre" placeholder="Nombre" style="min-width:260px" required>
+      <input name="cif" placeholder="CIF" style="min-width:180px">
+      <input name="direccion" placeholder="Dirección" style="min-width:320px">
+      <input name="telefono" placeholder="Teléfono" style="min-width:180px">
+      <input name="email" placeholder="Email" style="min-width:220px">
+      <button class="btn" type="submit">Guardar</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:28%;">Nombre</th>
+          <th style="width:14%;">CIF</th>
+          <th style="width:34%;">Dirección</th>
+          <th style="width:12%;">Teléfono</th>
+          <th style="width:12%;">Email</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in provs %}
+        <tr>
+          <td>{{ p.nombre }}</td>
+          <td class="small">{{ p.cif }}</td>
+          <td class="small">{{ p.direccion }}</td>
+          <td class="small">{{ p.telefono }}</td>
+          <td class="small">{{ p.email }}</td>
+        </tr>
+        {% endfor %}
+        {% if provs|length == 0 %}
+        <tr><td colspan="5" class="small">No hay proveedores aún.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>

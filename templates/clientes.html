@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MOVE OUTSIDE | Clientes</title>
+  <style>
+    body{margin:0;font-family:system-ui;background:#0b1220;color:#eaf0ff}
+    header{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:#111a30;border-bottom:1px solid rgba(255,255,255,.08)}
+    .btn{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#eaf0ff;padding:9px 12px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-block}
+    .wrap{max-width:1200px;margin:18px auto;padding:0 16px}
+    .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:16px;margin-bottom:14px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px 8px;border-top:1px solid rgba(255,255,255,.08);vertical-align:top}
+    th{color:#9fb2d6;font-size:12px;text-align:left}
+    .small{color:#9fb2d6;font-size:12px}
+    input{padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.20);color:#eaf0ff}
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <div style="font-weight:800">Clientes</div>
+    <div class="small">Fichas cliente + datos base</div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a class="btn" href="/">Volver</a>
+    <a class="btn" href="/logout">Cerrar sesión</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="card">
+    <h3 style="margin:0 0 10px 0;">Nuevo cliente</h3>
+    <form method="POST" action="/clientes/create" style="display:flex;gap:10px;flex-wrap:wrap">
+      <input name="codigo" placeholder="Código (ej: ECI)" style="min-width:140px" required>
+      <input name="nombre" placeholder="Nombre" style="min-width:260px" required>
+      <input name="cif" placeholder="CIF" style="min-width:180px">
+      <input name="direccion" placeholder="Dirección" style="min-width:320px">
+      <button class="btn" type="submit">Guardar</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:12%;">Código</th>
+          <th style="width:26%;">Nombre</th>
+          <th style="width:14%;">CIF</th>
+          <th style="width:48%;">Dirección</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in clientes %}
+        <tr>
+          <td>{{ c.codigo }}</td>
+          <td>{{ c.nombre }}</td>
+          <td class="small">{{ c.cif }}</td>
+          <td class="small">{{ c.direccion }}</td>
+        </tr>
+        {% endfor %}
+        {% if clientes|length == 0 %}
+        <tr><td colspan="4" class="small">No hay clientes aún.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>

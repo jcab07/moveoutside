@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MOVE OUTSIDE | Rutas</title>
+  <style>
+    body{margin:0;font-family:system-ui;background:#0b1220;color:#eaf0ff}
+    header{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:#111a30;border-bottom:1px solid rgba(255,255,255,.08)}
+    .btn{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#eaf0ff;padding:9px 12px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-block}
+    .wrap{max-width:1200px;margin:18px auto;padding:0 16px}
+    .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:16px;margin-bottom:14px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px 8px;border-top:1px solid rgba(255,255,255,.08);vertical-align:top}
+    th{color:#9fb2d6;font-size:12px;text-align:left}
+    input{padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.20);color:#eaf0ff}
+    .small{color:#9fb2d6;font-size:12px}
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <div style="font-weight:800">Rutas</div>
+    <div class="small">Cargar / asignar / exportar / enviar WhatsApp</div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a class="btn" href="/">Volver</a>
+    <a class="btn" href="/logout">Cerrar sesión</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="card">
+    <h3 style="margin:0 0 10px 0;">Crear ruta</h3>
+    <form method="POST" action="/rutas/new" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;">
+      <div>
+        <div class="small">Título</div>
+        <input name="titulo" placeholder="Ej: Ruta ECI mañana" style="min-width:280px;">
+      </div>
+      <div>
+        <div class="small">Proyecto</div>
+        <input name="proyecto" placeholder="Ej: V429.1" style="min-width:180px;">
+      </div>
+      <button class="btn" type="submit">Crear</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 10px 0;">Historial</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:10%;">ID</th>
+          <th style="width:22%;">Fecha</th>
+          <th style="width:26%;">Proyecto</th>
+          <th style="width:26%;">PDF</th>
+          <th style="width:16%;">Abrir</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rutas %}
+        <tr>
+          <td>#{{ r.id }}</td>
+          <td>{{ r.fecha }}</td>
+          <td>{{ r.proyecto }}</td>
+          <td class="small">{{ r.pdf_filename }}</td>
+          <td><a class="btn" href="/rutas/{{ r.id }}">Editar</a></td>
+        </tr>
+        {% endfor %}
+        {% if rutas|length == 0 %}
+        <tr><td colspan="5" class="small">No hay rutas todavía.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>

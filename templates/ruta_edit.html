@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MOVE OUTSIDE | Ruta</title>
+  <style>
+    body{margin:0;font-family:system-ui;background:#0b1220;color:#eaf0ff}
+    header{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:#111a30;border-bottom:1px solid rgba(255,255,255,.08)}
+    .btn{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#eaf0ff;padding:9px 12px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-block}
+    .wrap{max-width:1500px;margin:18px auto;padding:0 16px}
+    .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:16px;margin-bottom:14px}
+    .small{color:#9fb2d6;font-size:12px}
+    input,select,textarea{
+      width:100%;padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.10);
+      background:rgba(0,0,0,.20);color:#eaf0ff;outline:none
+    }
+    textarea{min-height:60px}
+    table{width:100%;border-collapse:collapse;min-width:1200px}
+    th,td{padding:10px 8px;border-top:1px solid rgba(255,255,255,.08);vertical-align:top}
+    th{color:#9fb2d6;font-size:12px;text-align:left}
+    .row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    .warn{color:#ffd9a0;white-space:pre-wrap}
+    .readonly{opacity:.75;pointer-events:none}
+    .tblwrap{overflow:auto;border-radius:12px;border:1px solid rgba(255,255,255,.10)}
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <div style="font-weight:800">Ruta #{{ ruta.id }}</div>
+    <div class="small">Asignación + validación + planificación</div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a class="btn" href="/rutas">Volver</a>
+    <a class="btn" href="/">Dashboard</a>
+    <a class="btn" href="/logout">Cerrar sesión</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="card {% if readonly %}readonly{% endif %}">
+    <div class="row">
+      <div>
+        <div class="small">Proyecto</div>
+        <input id="proyecto" value="{{ ruta.proyecto or '' }}">
+      </div>
+      <div>
+        <div class="small">Fecha</div>
+        <input id="fecha" value="{{ ruta.fecha or '' }}" placeholder="YYYY-MM-DD">
+      </div>
+      <div>
+        <div class="small">Origen (general)</div>
+        <input id="origen" value="{{ ruta.origen or '' }}">
+      </div>
+      <div>
+        <div class="small">Destino (general)</div>
+        <input id="destino" value="{{ ruta.destino or '' }}">
+      </div>
+    </div>
+
+    <div class="actions">
+      <form method="POST" action="/rutas/{{ ruta.id }}/upload_pdf" enctype="multipart/form-data">
+        <input type="file" name="pdf" accept="application/pdf" {% if readonly %}disabled{% endif %}>
+        <button class="btn" type="submit" {% if readonly %}disabled{% endif %}>Subir PDF</button>
+      </form>
+
+      <button class="btn" onclick="addRow()" {% if readonly %}disabled{% endif %}>+ Añadir fila</button>
+      <button class="btn" onclick="saveAll()" {% if readonly %}disabled{% endif %}>Guardar</button>
+      <button class="btn" onclick="toPlan()" {% if readonly %}disabled{% endif %}>Enviar a Planificación</button>
+      <span class="small">PDF: {{ ruta.pdf_filename }}</span>
+    </div>
+
+    <div id="err" class="warn" style="margin-top:10px;display:none;"></div>
+  </div>
+
+  <div class="card {% if readonly %}readonly{% endif %}">
+    <div class="tblwrap">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th style="width:120px;">Tipo</th>
+            <th style="width:220px;">Colaborador</th>
+            <th style="width:220px;">Conductor</th>
+            <th style="width:160px;">Vehículo</th>
+            <th style="width:160px;">Remolque</th>
+            <th style="width:240px;">Origen</th>
+            <th style="width:240px;">Destino</th>
+            <th style="width:140px;">Salida</th>
+            <th style="width:140px;">Llegada</th>
+            <th style="width:140px;">Notas</th>
+            <th style="width:80px;">Del</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const TIPOS = {{ tipos|tojson }};
+  let items = [];
+  const readonly = {{ (readonly or False)|tojson }};
+
+  const initial = {{ (items or [])|tojson }};
+  items = initial.map(x => ({
+    tipo: (x.tipo || "PROPIOS"),
+    colaborador: x.colaborador || "",
+    conductor: x.conductor || "",
+    vehiculo: x.vehiculo || "",
+    remolque: x.remolque || "",
+    origen: x.origen || "",
+    destino: x.destino || "",
+    salida: x.salida || "",
+    llegada: x.llegada || "",
+    notas: x.notas || "",
+  }));
+
+  function selTipo(val, idx){
+    const opts = TIPOS.map(t => `<option ${t===val ? "selected":""}>${t}</option>`).join("");
+    return `<select onchange="items[${idx}].tipo=this.value; render()">${opts}</select>`;
+  }
+
+  function render(){
+    const tb = document.getElementById("tbody");
+    tb.innerHTML = "";
+    items.forEach((it, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${selTipo(it.tipo, i)}</td>
+        <td><input value="${escapeHtml(it.colaborador)}" oninput="items[${i}].colaborador=this.value"></td>
+        <td><input value="${escapeHtml(it.conductor)}" oninput="items[${i}].conductor=this.value"></td>
+        <td><input value="${escapeHtml(it.vehiculo)}" oninput="items[${i}].vehiculo=this.value"></td>
+        <td><input value="${escapeHtml(it.remolque)}" oninput="items[${i}].remolque=this.value"></td>
+        <td><input value="${escapeHtml(it.origen)}" oninput="items[${i}].origen=this.value"></td>
+        <td><input value="${escapeHtml(it.destino)}" oninput="items[${i}].destino=this.value"></td>
+        <td><input value="${escapeHtml(it.salida)}" oninput="items[${i}].salida=this.value"></td>
+        <td><input value="${escapeHtml(it.llegada)}" oninput="items[${i}].llegada=this.value"></td>
+        <td><input value="${escapeHtml(it.notas)}" oninput="items[${i}].notas=this.value"></td>
+        <td><button class="btn" onclick="delRow(${i})">X</button></td>
+      `;
+      tb.appendChild(tr);
+    });
+  }
+
+  function addRow(){
+    items.push({tipo:"PROPIOS",colaborador:"",conductor:"",vehiculo:"",remolque:"",origen:"",destino:"",salida:"",llegada:"",notas:""});
+    render();
+  }
+  function delRow(i){
+    items.splice(i,1);
+    render();
+  }
+
+  function escapeHtml(s){
+    return String(s||"")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#39;");
+  }
+
+  async function saveAll(){
+    document.getElementById("err").style.display="none";
+    const ruta = {
+      proyecto: document.getElementById("proyecto").value,
+      fecha: document.getElementById("fecha").value,
+      origen: document.getElementById("origen").value,
+      destino: document.getElementById("destino").value
+    };
+
+    const res = await fetch(`/rutas/{{ ruta.id }}/save`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ruta, items})
+    });
+
+    if(!res.ok){
+      const data = await res.json().catch(()=>({error:"Error"}));
+      const err = document.getElementById("err");
+      err.textContent = data.error || "Error guardando";
+      err.style.display="";
+      return;
+    }
+    alert("✅ Guardado");
+  }
+
+  async function toPlan(){
+    const res = await fetch(`/rutas/{{ ruta.id }}/to_planificacion`, {method:"POST"});
+    if(!res.ok){
+      alert("Error enviando a planificación");
+      return;
+    }
+    alert("✅ Enviado a Planificación");
+    window.location.href="/planificacion";
+  }
+
+  render();
+</script>
+</body>
+</html>
