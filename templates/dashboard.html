@@ -18,13 +18,46 @@
     .brand h1{font-size:16px;margin:0}
     .brand .sub{font-size:12px;color:#9fb2d6;margin-top:3px}
     .btn{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#eaf0ff;padding:9px 12px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-block}
-    .wrap{max-width:1100px;margin:18px auto;padding:0 16px}
-    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
-    .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:16px}
-    .card h2{margin:0 0 6px 0;font-size:15px}
-    .card p{margin:0 0 12px 0;color:#9fb2d6;font-size:12px;line-height:1.35}
+    .wrap{max-width:1150px;margin:18px auto;padding:0 16px}
+
+    /* ✅ 3 columnas */
+    .grid{display:grid;grid-template-columns:repeat(3, minmax(0,1fr));gap:12px}
+
+    /* ✅ tarjetas más compactas/angostas */
+    .card{
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:16px;
+      padding:12px 12px 12px 12px;
+      min-height:132px;
+      background:rgba(255,255,255,.06);
+      position:relative;
+      overflow:hidden;
+    }
+
+    .card h2{margin:6px 0 6px 0;font-size:15px}
+    .card p{margin:0 0 10px 0;color:#9fb2d6;font-size:12px;line-height:1.35}
     .tag{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);font-size:12px;color:#eaf0ff}
     .top-actions{display:flex;gap:10px;align-items:center}
+
+    /* ✅ Colores suaves por módulo (sutiles, no intensos) */
+    .card::before{
+      content:"";
+      position:absolute; inset:0;
+      opacity:.22;
+      pointer-events:none;
+      background:linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,0));
+    }
+
+    .card-realtime::before{background:linear-gradient(135deg, rgba(59,130,246,.55), rgba(59,130,246,0));}
+    .card-facturacion_patio::before{background:linear-gradient(135deg, rgba(239,68,68,.45), rgba(239,68,68,0));}
+    .card-flota::before{background:linear-gradient(135deg, rgba(34,197,94,.45), rgba(34,197,94,0));}
+    .card-personal::before{background:linear-gradient(135deg, rgba(168,85,247,.45), rgba(168,85,247,0));}
+
+    .card-rutas::before{background:linear-gradient(135deg, rgba(245,158,11,.40), rgba(245,158,11,0));}
+    .card-planificacion::before{background:linear-gradient(135deg, rgba(14,165,233,.40), rgba(14,165,233,0));}
+    .card-clientes::before{background:linear-gradient(135deg, rgba(251,113,133,.35), rgba(251,113,133,0));}
+    .card-proveedores::before{background:linear-gradient(135deg, rgba(148,163,184,.45), rgba(148,163,184,0));}
+    .card-vehiculos::before{background:linear-gradient(135deg, rgba(45,212,191,.35), rgba(45,212,191,0));}
 
     .credit{
       position:fixed; right:14px; bottom:10px;
@@ -32,6 +65,9 @@
       pointer-events:none; user-select:none; z-index:9999;
     }
 
+    @media (max-width:1100px){
+      .grid{grid-template-columns:repeat(2, minmax(0,1fr));}
+    }
     @media (max-width:800px){
       header{flex-direction:column;align-items:flex-start;gap:12px}
       .grid{grid-template-columns:1fr}
@@ -61,7 +97,7 @@
   <div class="wrap">
     <div class="grid">
       {% for m in modules %}
-        <div class="card">
+        <div class="card card-{{ m.id }}">
           <span class="tag">
             {% if m.id == "realtime" %}Panel
             {% elif m.id == "facturacion_patio" %}Facturación
@@ -88,26 +124,24 @@
             <p>Gestión de conductores/operativos: altas masivas y base para roles futuros.</p>
             <a class="btn" href="/personal">Entrar</a>
 
-          {# ✅ NUEVOS MÓDULOS (solo botón + texto placeholder) #}
-
           {% elif m.id == "rutas" %}
-            <p>Importación/planificación de rutas (ECI + otros). (En construcción)</p>
+            <p>Importación/planificación de rutas (ECI + otros).</p>
             <a class="btn" href="/rutas">Entrar</a>
 
           {% elif m.id == "planificacion" %}
-            <p>Borradores/plantillas de planificación. (En construcción)</p>
+            <p>Borradores/plantillas y planificación.</p>
             <a class="btn" href="/planificacion">Entrar</a>
 
           {% elif m.id == "clientes" %}
-            <p>Fichas de clientes + contactos. (En construcción)</p>
+            <p>Fichas de clientes + contactos.</p>
             <a class="btn" href="/clientes">Entrar</a>
 
           {% elif m.id == "proveedores" %}
-            <p>Fichas de proveedores + contactos. (En construcción)</p>
+            <p>Fichas de proveedores + contactos.</p>
             <a class="btn" href="/proveedores">Entrar</a>
 
           {% elif m.id == "vehiculos" %}
-            <p>Docs/ITV/tacógrafo/ATP y vencimientos. (En construcción)</p>
+            <p>Docs/ITV/tacógrafo/ATP y vencimientos.</p>
             <a class="btn" href="/vehiculos">Entrar</a>
 
           {% else %}
