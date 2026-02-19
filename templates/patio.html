@@ -239,7 +239,7 @@
         <div>
           <label>Festivo / Domingo</label>
           <div class="switch">
-            <input type="checkbox" id="festivo" onchange="renderAll()">
+            <input type="checkbox" id="festivo" onchange="onFestivoToggle()">
             <span>Tarifa</span>
           </div>
         </div>
@@ -526,6 +526,31 @@
     pill.style.display = "none";
     renderAll();
   }
+function onFestivoToggle(){
+  const fest = document.getElementById("festivo").checked;
+
+  if(fest){
+    // Guardamos ruta anterior y forzamos V429.1
+    rows = rows.map(r => {
+      if(r.__ruta_pre_festivo === undefined){
+        r.__ruta_pre_festivo = r.Ruta || "V429";
+      }
+      return { ...r, Ruta: "V429.1" };
+    });
+  } else {
+    // Restauramos ruta anterior si existía
+    rows = rows.map(r => {
+      if(r.__ruta_pre_festivo !== undefined){
+        const prev = r.__ruta_pre_festivo;
+        delete r.__ruta_pre_festivo;
+        return { ...r, Ruta: prev };
+      }
+      return r;
+    });
+  }
+
+  renderAll();
+}
 
   function renderAll(){
     const tbody = document.getElementById("tbody");
