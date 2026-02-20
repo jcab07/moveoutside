@@ -364,12 +364,34 @@ def key_plate(raw: str) -> str:
     return s
 
 def parse_pdf_line_flex(line: str):
-    ...
-    if "Diaria" not in core:
+    core = None
+    horas_reales = None
+
+    m = re.search(r"(\d+[.,]\d+|\d+)\s+(\d+[.,]\d+|\d+)\s+(\d+[.,]\d+|\d+)\s*$", line)
+    if m:
+        horas_reales = parse_spanish_number(m.group(3))
+        core = line[:m.start()].strip()
+    else:
+        m2 = re.search(r"(\d+[.,]\d+|\d+)\s+(\d+[.,]\d+|\d+)\s*$", line)
+        if not m2:
+            return None
+        horas_reales = parse_spanish_number(m2.group(2))
+        core = line[:m2.start()].strip()
+
+    if not core:
         return None
 
-    _, post = core.split("Diaria", 1)
-    parts = post.strip().split()
+    # Ojo: en algunos PDFs puede venir "DIARIA" en mayúsculas
+    if "DIARIA" not in core.upper():
+        return None
+
+    # Separar por "Diaria" sin romper si viene en mayúsculas/minúsculas
+    m3 = re.search(r"diaria", core, flags=re.IGNORECASE)
+    if not m3:
+        return None
+
+    post = core[m3.end():].strip()
+    parts = post.split()
     rest = " ".join(parts[1:]).strip() if parts else ""
     return {"rest": rest, "horas_reales": float(horas_reales)}
 
@@ -1367,7 +1389,7 @@ def rutas_upload_pdf(ruta_id: int):
         conn.commit()
 
     return redirect(url_for("rutas_edit", ruta_id=ruta_id))
-
+    
 @app.route("/rutas/<int:ruta_id>/save", methods=["POST"])
 @login_required
 @module_required("rutas")
