@@ -1349,6 +1349,7 @@ def rutas_edit(ruta_id: int):
 @app.route("/rutas/<int:ruta_id>/upload_pdf", methods=["POST"])
 @login_required
 @module_required("rutas")
+def rutas_upload_pdf(ruta_id: int):
     f = request.files.get("pdf")
     if not f:
         return redirect(url_for("rutas_edit", ruta_id=ruta_id))
@@ -1356,27 +1357,27 @@ def rutas_edit(ruta_id: int):
     filename = secure_filename(f.filename or "ruta.pdf")
     if not filename.lower().endswith(".pdf"):
         filename += ".pdf"
+
+    # Guardamos con nombre único para evitar pisar PDFs (y evitar bugs raros)
+    stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"ruta_{ruta_id}_{stamp}_{filename}"
+
     path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
     f.save(path)
 
     parsed = parse_eci_route_pdf_basic(path)
-    fecha = parsed.get("fecha","")
+    fecha = parsed.get("fecha", "") or ""
 
-    # Creamos items "vacíos" a partir de algunas líneas detectadas (MVP)
-    raw = parsed.get("raw_lines", [])
-    suggested = []
-    for ln in raw:
-        # Si ves algún patrón claro luego, lo refinamos.
-        # De momento: no inventamos rutas.
-        if "ORIGEN" in ln.upper() or "DESTINO" in ln.upper():
-            continue
-
+    # De momento NO creamos items automáticamente (MVP). Solo guardamos pdf y fecha.
     with db_data() as conn:
-        conn.execute("UPDATE rutas SET pdf_filename=?, fecha=? WHERE id=?", (filename, fecha, ruta_id))
+        conn.execute(
+            "UPDATE rutas SET pdf_filename=?, fecha=? WHERE id=?",
+            (filename, fecha, ruta_id)
+        )
         conn.commit()
 
     return redirect(url_for("rutas_edit", ruta_id=ruta_id))
-
+    
 @app.route("/rutas/<int:ruta_id>/save", methods=["POST"])
 @login_required
 @module_required("rutas")
