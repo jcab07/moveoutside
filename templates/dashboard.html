@@ -1,35 +1,21 @@
 <!doctype html>
 <html lang="es">
 <head>
-   <meta charset="utf-8" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MOVE OUTSIDE | Dashboard</title>
   <style>
     body{margin:0;font-family:system-ui;background:#0b1220;color:#eaf0ff}
 
-    /* ✅ Header con imagen de fondo header.png (SIN tocar tu estructura) */
     header{
       display:flex;justify-content:space-between;align-items:center;
       padding:16px 22px;
-      background:#111a30;
-      border-bottom:1px solid rgba(255,255,255,.08);
-
-      position:relative;           /* ✅ necesario para ::before */
-      overflow:hidden;             /* ✅ recorta el fondo */
-    }
-    header::before{
-      content:"";
-      position:absolute; inset:0;
       background:
-        linear-gradient(90deg, rgba(17,26,48,.92), rgba(17,26,48,.78)),
-        url("/static/header.png");
-      background-size:cover;
-      background-position:center;
-      background-repeat:no-repeat;
-      opacity:1;
-      pointer-events:none;
+        linear-gradient(180deg, rgba(11,18,32,.55), rgba(11,18,32,.70)),
+        url("/static/header.png") center/cover no-repeat,
+        #111a30;
+      border-bottom:1px solid rgba(255,255,255,.08);
     }
-    header > *{ position:relative; z-index:1; } /* ✅ el contenido queda encima del fondo */
 
     .brand{display:flex;align-items:center;gap:12px}
     .brand img{
@@ -41,18 +27,26 @@
     }
     .brand h1{font-size:16px;margin:0}
     .brand .sub{font-size:12px;color:#9fb2d6;margin-top:3px}
-    .btn{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#eaf0ff;padding:9px 12px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-block}
+
+    .btn{
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.06);
+      color:#eaf0ff;
+      padding:9px 12px;border-radius:10px;
+      cursor:pointer;text-decoration:none;display:inline-block
+    }
+
     .wrap{max-width:1150px;margin:18px auto;padding:0 16px}
 
     /* ✅ 3 columnas */
     .grid{display:grid;grid-template-columns:repeat(3, minmax(0,1fr));gap:12px}
 
-    /* ✅ tarjetas más compactas/angostas */
+    /* ✅ tarjetas más compactas */
     .card{
       border:1px solid rgba(255,255,255,.10);
       border-radius:16px;
-      padding:12px 12px 12px 12px;
-      min-height:132px;
+      padding:12px;
+      min-height:118px;
       background:rgba(255,255,255,.06);
       position:relative;
       overflow:hidden;
@@ -60,10 +54,15 @@
 
     .card h2{margin:6px 0 6px 0;font-size:15px}
     .card p{margin:0 0 10px 0;color:#9fb2d6;font-size:12px;line-height:1.35}
-    .tag{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);font-size:12px;color:#eaf0ff}
+    .tag{
+      display:inline-block;padding:4px 10px;border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.06);
+      font-size:12px;color:#eaf0ff
+    }
     .top-actions{display:flex;gap:10px;align-items:center}
 
-    /* ✅ Colores suaves por módulo (sutiles, no intensos) */
+    /* ✅ Colores suaves por módulo */
     .card::before{
       content:"";
       position:absolute; inset:0;
@@ -71,7 +70,6 @@
       pointer-events:none;
       background:linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,0));
     }
-
     .card-realtime::before{background:linear-gradient(135deg, rgba(59,130,246,.55), rgba(59,130,246,0));}
     .card-facturacion_patio::before{background:linear-gradient(135deg, rgba(239,68,68,.45), rgba(239,68,68,0));}
     .card-flota::before{background:linear-gradient(135deg, rgba(34,197,94,.45), rgba(34,197,94,0));}

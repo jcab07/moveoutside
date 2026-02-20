@@ -1,30 +1,43 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>MOVE OUTSIDE | Rutas</title>
   <style>
-    body{margin:0;font-family:system-ui;background:#0b1220;color:#eaf0ff}
+    :root{--bg:#0b1220;--text:#eaf0ff;--muted:#9fb2d6;--b:rgba(255,255,255,.10);--card:rgba(255,255,255,.06);}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui;background:var(--bg);color:var(--text)}
     header{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:#111a30;border-bottom:1px solid rgba(255,255,255,.08)}
     .btn{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#eaf0ff;padding:9px 12px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-block}
-    .wrap{max-width:1200px;margin:18px auto;padding:0 16px}
-    .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:16px;margin-bottom:14px}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:10px 8px;border-top:1px solid rgba(255,255,255,.08);vertical-align:top}
-    th{color:#9fb2d6;font-size:12px;text-align:left}
-    input{padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.20);color:#eaf0ff}
-    .small{color:#9fb2d6;font-size:12px}
+    .wrap{max-width:1500px;margin:18px auto;padding:0 16px}
+    .card{background:var(--card);border:1px solid var(--b);border-radius:16px;padding:14px;margin-bottom:14px}
+    label{display:block;font-size:12px;color:var(--muted);margin:8px 0 6px}
+    input,select{width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--b);background:rgba(0,0,0,.20);color:var(--text);outline:none}
+    .row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:end}
+    .row2{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr auto auto auto;gap:10px;align-items:end;margin-top:10px}
+    .small{color:var(--muted);font-size:12px}
+    .status{margin-top:10px;font-size:12px;color:var(--muted)}
+    .tbl{overflow:auto;border:1px solid var(--b);border-radius:14px}
+    table{width:100%;min-width:1400px;border-collapse:collapse;background:rgba(0,0,0,.16)}
+    th,td{padding:10px 10px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;vertical-align:top}
+    th{color:var(--muted);text-align:left;position:sticky;top:0;background:rgba(15,27,51,.92)}
+    .actions{display:flex;gap:10px;flex-wrap:wrap}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid var(--b);background:rgba(255,255,255,.06);font-size:12px}
+    .warn{border-color:rgba(255,183,77,.5);background:rgba(255,183,77,.12);color:#ffd9a0}
+    .ok{border-color:rgba(34,197,94,.45);background:rgba(34,197,94,.12);color:#bff5d2}
+    @media (max-width:1100px){ .row{grid-template-columns:1fr 1fr} .row2{grid-template-columns:1fr} }
   </style>
 </head>
 <body>
 <header>
   <div>
     <div style="font-weight:800">Rutas</div>
-    <div class="small">Cargar / asignar / exportar / enviar WhatsApp</div>
+    <div class="small">Asignación + validación + planificación</div>
   </div>
-  <div style="display:flex;gap:10px;">
-    <a class="btn" href="/">Volver</a>
+  <div class="actions">
+    <a class="btn" href="/rutas/historial">Historial</a>
+    <a class="btn" href="/">Dashboard</a>
     <a class="btn" href="/logout">Cerrar sesión</a>
   </div>
 </header>
@@ -32,49 +45,248 @@
 <div class="wrap">
 
   <div class="card">
-    <h3 style="margin:0 0 10px 0;">Crear ruta</h3>
-    <form method="POST" action="/rutas/new" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;">
+    <div class="row">
       <div>
-        <div class="small">Título</div>
-        <input name="titulo" placeholder="Ej: Ruta ECI mañana" style="min-width:280px;">
+        <label>Proyecto</label>
+        <input id="proyecto" placeholder="Ej: V429 / ...">
       </div>
       <div>
-        <div class="small">Proyecto</div>
-        <input name="proyecto" placeholder="Ej: V429.1" style="min-width:180px;">
+        <label>Fecha</label>
+        <input id="fecha" type="date">
       </div>
-      <button class="btn" type="submit">Crear</button>
-    </form>
+      <div>
+        <label>Origen (general)</label>
+        <input id="origen_general" placeholder="Ej: CAD Valdemoro">
+      </div>
+      <div>
+        <label>Destino (general)</label>
+        <input id="destino_general" placeholder="Ej: Alicante / TRS / ...">
+      </div>
+    </div>
+
+    <div class="row2">
+      <div>
+        <label>PDF petición (ECI)</label>
+        <input id="pdf" type="file" accept="application/pdf">
+        <div class="small" id="pdfName"></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" onclick="uploadPdf()">Subir PDF</button>
+      </div>
+
+      <div class="actions">
+        <button class="btn" onclick="addRow()">+ Añadir fila</button>
+      </div>
+
+      <div class="actions">
+        <button class="btn" onclick="saveRun()">Guardar</button>
+      </div>
+
+      <div class="actions">
+        <button class="btn" onclick="sendToPlanificacion()">Enviar a Planificación</button>
+      </div>
+
+      <div class="actions">
+        <button class="btn" onclick="downloadOrdenCarga()">Orden de carga (PDF)</button>
+      </div>
+
+      <div class="actions">
+        <button class="btn" onclick="copyWhatsappFromSelected()">WhatsApp (con Maps)</button>
+      </div>
+    </div>
+
+    <div class="status" id="status">
+      <span class="pill">Listo.</span>
+    </div>
   </div>
 
   <div class="card">
-    <h3 style="margin:0 0 10px 0;">Historial</h3>
-    <table>
-      <thead>
-        <tr>
-          <th style="width:10%;">ID</th>
-          <th style="width:22%;">Fecha</th>
-          <th style="width:26%;">Proyecto</th>
-          <th style="width:26%;">PDF</th>
-          <th style="width:16%;">Abrir</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in rutas %}
-        <tr>
-          <td>#{{ r.id }}</td>
-          <td>{{ r.fecha }}</td>
-          <td>{{ r.proyecto }}</td>
-          <td class="small">{{ r.pdf_filename }}</td>
-          <td><a class="btn" href="/rutas/{{ r.id }}">Editar</a></td>
-        </tr>
-        {% endfor %}
-        {% if rutas|length == 0 %}
-        <tr><td colspan="5" class="small">No hay rutas todavía.</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
+    <div class="small" style="margin-bottom:8px;">Selecciona una fila (radio) para generar WhatsApp con Maps al destino.</div>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40px;">#</th>
+            <th>Tipo</th>
+            <th>Colaborador</th>
+            <th>Conductor</th>
+            <th>Vehículo</th>
+            <th>Remolque</th>
+            <th>Origen</th>
+            <th>Destino</th>
+            <th>Salida</th>
+            <th>Llegada</th>
+            <th>Notas</th>
+            <th>Del</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
   </div>
 
 </div>
+
+<script>
+  let pdfFilename = "";
+  let rows = [];
+
+  document.getElementById("fecha").value = new Date().toISOString().slice(0,10);
+
+  function setStatus(type, text){
+    const el = document.getElementById("status");
+    const cls = type === "ok" ? "ok" : (type === "warn" ? "warn" : "");
+    el.innerHTML = `<span class="pill ${cls}">${text}</span>`;
+  }
+
+  document.getElementById("pdf").addEventListener("change", (e)=>{
+    const f = e.target.files[0];
+    document.getElementById("pdfName").textContent = f ? ("PDF: " + f.name) : "";
+  });
+
+  function render(){
+    const tb = document.getElementById("tbody");
+    tb.innerHTML = "";
+    rows.forEach((r, i)=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input type="radio" name="sel" value="${i}"></td>
+        <td><input value="${r.tipo||''}" oninput="rows[${i}].tipo=this.value"></td>
+        <td><input value="${r.colaborador||''}" oninput="rows[${i}].colaborador=this.value"></td>
+        <td><input value="${r.conductor||''}" oninput="rows[${i}].conductor=this.value"></td>
+        <td><input value="${r.vehiculo||''}" oninput="rows[${i}].vehiculo=this.value"></td>
+        <td><input value="${r.remolque||''}" oninput="rows[${i}].remolque=this.value"></td>
+        <td><input value="${r.origen||''}" oninput="rows[${i}].origen=this.value"></td>
+        <td><input value="${r.destino||''}" oninput="rows[${i}].destino=this.value"></td>
+        <td><input value="${r.salida||''}" oninput="rows[${i}].salida=this.value"></td>
+        <td><input value="${r.llegada||''}" oninput="rows[${i}].llegada=this.value"></td>
+        <td><input value="${r.notas||''}" oninput="rows[${i}].notas=this.value"></td>
+        <td><button class="btn" onclick="delRow(${i})">X</button></td>
+      `;
+      tb.appendChild(tr);
+    });
+  }
+
+  function addRow(){
+    rows.push({tipo:"",colaborador:"",conductor:"",vehiculo:"",remolque:"",origen:"",destino:"",salida:"",llegada:"",notas:""});
+    render();
+  }
+
+  function delRow(i){
+    rows.splice(i,1);
+    render();
+  }
+
+  async function uploadPdf(){
+    const f = document.getElementById("pdf").files[0];
+    if(!f){ alert("Selecciona un PDF"); return; }
+
+    setStatus("", "Procesando PDF... (si es largo, puede tardar)");
+    const fd = new FormData();
+    fd.append("pdf", f);
+
+    const res = await fetch("/rutas/upload_pdf", {method:"POST", body: fd});
+    const data = await res.json();
+    if(!data.ok){
+      setStatus("warn", data.error || "Error");
+      return;
+    }
+
+    pdfFilename = data.pdf_filename || f.name;
+    document.getElementById("pdfName").textContent = "PDF: " + pdfFilename;
+
+    // Fecha viene del PDF, pero es editable
+    if(data.fecha) document.getElementById("fecha").value = data.fecha;
+
+    rows = (data.rows || []).map(x => ({
+      tipo: x.tipo || "",
+      colaborador: "",
+      conductor: "",
+      vehiculo: "",
+      remolque: "",
+      origen: x.origen || "",
+      destino: x.destino || "",
+      salida: x.salida || "",
+      llegada: x.llegada || "",
+      notas: x.notas || ""
+    }));
+
+    render();
+    setStatus("ok", `PDF OK · Filas: ${rows.length}`);
+  }
+
+  async function saveRun(){
+    const payload = {
+      proyecto: document.getElementById("proyecto").value,
+      fecha: document.getElementById("fecha").value,
+      origen_general: document.getElementById("origen_general").value,
+      destino_general: document.getElementById("destino_general").value,
+      pdf_filename: pdfFilename,
+      rows
+    };
+    const res = await fetch("/rutas/save", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if(!data.ok){ setStatus("warn", data.error || "Error guardando"); return; }
+    setStatus("ok", `Guardado OK · ID ${data.run_id}`);
+  }
+
+  function sendToPlanificacion(){
+    alert("Planificación: lo conectamos al módulo /planificacion (por ahora placeholder).");
+  }
+
+  async function downloadOrdenCarga(){
+    const payload = {
+      cliente: "EL CORTE INGLÉS",
+      proyecto: document.getElementById("proyecto").value,
+      fecha: document.getElementById("fecha").value,
+      origen_general: document.getElementById("origen_general").value,
+      destino_general: document.getElementById("destino_general").value,
+      rows
+    };
+
+    const res = await fetch("/rutas/orden_carga.pdf", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "orden_de_carga.pdf";
+    a.click();
+  }
+
+  async function copyWhatsappFromSelected(){
+    const sel = document.querySelector("input[name='sel']:checked");
+    if(!sel){ alert("Selecciona una fila primero (radio)."); return; }
+    const i = Number(sel.value);
+    const r = rows[i];
+
+    const payload = {
+      conductor: r.conductor,
+      origen: r.origen,
+      destino: r.destino,
+      salida: r.salida,
+      proyecto: document.getElementById("proyecto").value,
+      notas: r.notas
+    };
+
+    const res = await fetch("/rutas/whatsapp_text", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    const text = data.text || "";
+    await navigator.clipboard.writeText(text);
+    setStatus("ok", "Texto WhatsApp copiado al portapapeles ✅");
+  }
+</script>
 </body>
 </html>
