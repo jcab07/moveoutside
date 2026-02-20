@@ -51,6 +51,7 @@ PROVEEDORES_FILE = p("proveedores_master.csv")
 FLOTA_SHEET_URL = "https://docs.google.com/spreadsheets/d/1mdK6gKjBpDF7vFD1R54bu9GCKuQJuxGJK7OMKsKGoHg/edit?gid=0#gid=0"
 FLOTA_LISTIN_URL = "https://script.google.com/macros/s/AKfycbzoSiZo757K3CuCIz0aEmWJX2idaIWUqwVl5rA6MZsT9npyf5zZzb_6UZ7lhun3a_Krcg/exec?viewer=1"
 
+from routes_module import rutas_bp
 # =========================
 # MÓDULOS DISPONIBLES (permisos)
 # =========================
@@ -103,6 +104,7 @@ PROVEEDORES_DEFAULT = {
 # FLASK APP
 # =========================
 app = Flask(__name__)
+app.register_blueprint(rutas_bp)
 app.config["UPLOAD_FOLDER"] = p("uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
@@ -1347,6 +1349,19 @@ def rutas_edit(ruta_id: int):
 @app.route("/rutas/<int:ruta_id>/upload_pdf", methods=["POST"])
 @login_required
 @module_required("rutas")
+@app.route("/rutas/upload_pdf", methods=["POST"])
+@login_required
+@module_required("rutas")
+def rutas_upload_pdf_alias():
+    """
+    Alias para soportar POST /rutas/upload_pdf.
+    El frontend debe mandar route_id (por ejemplo 3) en el form.
+    """
+    rid = (request.form.get("route_id") or "").strip()
+    if not rid.isdigit():
+        return jsonify({"error": "Falta route_id o no es válido"}), 400
+
+    return rutas_upload_pdf(int(rid))
 def rutas_upload_pdf(ruta_id: int):
     f = request.files.get("pdf")
     if not f:
