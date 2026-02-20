@@ -364,17 +364,7 @@ def key_plate(raw: str) -> str:
     return s
 
 def parse_pdf_line_flex(line: str):
-    m = re.search(r"(\d+[.,]\d+|\d+)\s+(\d+[.,]\d+|\d+)\s+(\d+[.,]\d+|\d+)\s*$", line)
-    if m:
-        horas_reales = parse_spanish_number(m.group(3))
-        core = line[:m.start()].strip()
-    else:
-        m2 = re.search(r"(\d+[.,]\d+|\d+)\s+(\d+[.,]\d+|\d+)\s*$", line)
-        if not m2:
-            return None
-        horas_reales = parse_spanish_number(m2.group(2))
-        core = line[:m2.start()].strip()
-
+    ...
     if "Diaria" not in core:
         return None
 
@@ -1377,7 +1367,7 @@ def rutas_upload_pdf(ruta_id: int):
         conn.commit()
 
     return redirect(url_for("rutas_edit", ruta_id=ruta_id))
-    
+
 @app.route("/rutas/<int:ruta_id>/save", methods=["POST"])
 @login_required
 @module_required("rutas")
