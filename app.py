@@ -51,7 +51,6 @@ PROVEEDORES_FILE = p("proveedores_master.csv")
 FLOTA_SHEET_URL = "https://docs.google.com/spreadsheets/d/1mdK6gKjBpDF7vFD1R54bu9GCKuQJuxGJK7OMKsKGoHg/edit?gid=0#gid=0"
 FLOTA_LISTIN_URL = "https://script.google.com/macros/s/AKfycbzoSiZo757K3CuCIz0aEmWJX2idaIWUqwVl5rA6MZsT9npyf5zZzb_6UZ7lhun3a_Krcg/exec?viewer=1"
 
-from routes_module import rutas_bp
 # =========================
 # MÓDULOS DISPONIBLES (permisos)
 # =========================
@@ -104,7 +103,6 @@ PROVEEDORES_DEFAULT = {
 # FLASK APP
 # =========================
 app = Flask(__name__)
-app.register_blueprint(rutas_bp)
 app.config["UPLOAD_FOLDER"] = p("uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
