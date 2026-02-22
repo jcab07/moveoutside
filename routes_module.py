@@ -43,7 +43,7 @@ def module_required(module_id: str):
 # -----------------------
 # Blueprint
 # -----------------------
-rutas_bp = Blueprint("rutas", __name__, url_prefix="/rutas")
+rutas_bp = Blueprint("rutas", __name__, url_prefix="/rutas_legacy")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 def p(*parts): return os.path.join(BASE_DIR, *parts)
