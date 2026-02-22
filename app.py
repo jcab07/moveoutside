@@ -52,7 +52,6 @@ FLOTA_SHEET_URL = "https://docs.google.com/spreadsheets/d/1mdK6gKjBpDF7vFD1R54bu
 FLOTA_LISTIN_URL = "https://script.google.com/macros/s/AKfycbzoSiZo757K3CuCIz0aEmWJX2idaIWUqwVl5rA6MZsT9npyf5zZzb_6UZ7lhun3a_Krcg/exec?viewer=1"
 
 from routes_module import rutas_bp
-
 # =========================
 # MÓDULOS DISPONIBLES (permisos)
 # =========================
@@ -105,11 +104,7 @@ PROVEEDORES_DEFAULT = {
 # FLASK APP
 # =========================
 app = Flask(__name__)
-
-# ✅ RUTAS (módulo nuevo) SOLO por Blueprint
-#    Importante: en app.py NO definimos /rutas para evitar duplicados/conflictos.
 app.register_blueprint(rutas_bp)
-
 app.config["UPLOAD_FOLDER"] = p("uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
@@ -1146,7 +1141,6 @@ def me():
 
 # ============================================================
 # ===================== NUEVO: DATA DB =======================
-# (se mantiene tal cual; NO interfiere con /rutas del blueprint)
 # ============================================================
 DB_DATA = p("data.db")
 
@@ -1252,11 +1246,238 @@ def init_data_db():
 init_data_db()
 
 # ============================================================
-# ==================== NUEVO: PLANIFICACIÓN ==================
-# (se mantiene; NO colisiona con /rutas del blueprint)
+# ================= NUEVO: HELPERS RUTAS ======================
 # ============================================================
 TIPOS_VALIDOS = ["AJENOS", "PROPIOS", "RETORNO", "DOMINGO"]
 
+def etiqueta_tipo(letter: str) -> str:
+    m = (letter or "").strip().upper()
+    if m == "A": return "AJENOS"
+    if m == "X": return "PROPIOS"
+    if m == "R": return "RETORNO"
+    if m == "D": return "DOMINGO"
+    return "PROPIOS"
+
+def approx_km_and_time(origen: str, destino: str):
+    # Placeholder (sin API externa): dejamos 0 y lo completaremos con integración (Google/OSRM) luego
+    return 0.0, 0.0
+
+def enforce_uniques(items: list):
+    """
+    Conductor+vehiculo NO repetidos salvo tipo=RETORNO.
+    """
+    used_conductores = set()
+    used_vehiculos = set()
+    errors = []
+
+    for idx, it in enumerate(items):
+        t = (it.get("tipo","") or "").upper().strip()
+        c = (it.get("conductor","") or "").strip()
+        v = (it.get("vehiculo","") or "").strip()
+
+        if t == "RETORNO":
+            continue
+
+        if c and c in used_conductores:
+            errors.append(f"Fila {idx+1}: Conductor repetido en IDA ({c})")
+        if v and v in used_vehiculos:
+            errors.append(f"Fila {idx+1}: Vehículo repetido en IDA ({v})")
+
+        if c: used_conductores.add(c)
+        if v: used_vehiculos.add(v)
+
+    return errors
+
+def parse_eci_route_pdf_basic(pdf_path: str):
+    """
+    Parser básico: extrae texto completo y devuelve líneas.
+    Luego tú asignas/ajustas en la tabla.
+    (Lo refinamos en siguientes iteraciones con tus PDFs reales.)
+    """
+    all_lines = []
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            txt = page.extract_text() or ""
+            for ln in (txt.splitlines() if txt else []):
+                ln = ln.strip()
+                if ln:
+                    all_lines.append(ln)
+
+    # intentamos detectar fecha en algo tipo 08/02/2026
+    fecha = ""
+    for ln in all_lines[:40]:
+        m = re.search(r"(\d{2}/\d{2}/\d{4})", ln)
+        if m:
+            try:
+                d = datetime.datetime.strptime(m.group(1), "%d/%m/%Y").date()
+                fecha = d.isoformat()
+                break
+            except Exception:
+                pass
+
+    return {"fecha": fecha, "raw_lines": all_lines[:400]}
+
+# ============================================================
+# ====================== NUEVO: RUTAS UI ======================
+# ============================================================
+@app.route("/rutas")
+@app.route("/rutas/")
+@login_required
+@module_required("rutas")
+def rutas_home():
+    # abre el último BORRADOR del usuario; si no existe, crea uno
+    with db_data() as conn:
+        ruta = conn.execute("""
+            SELECT id FROM rutas
+            WHERE estado='BORRADOR' AND created_by=?
+            ORDER BY id DESC
+            LIMIT 1
+        """, (session.get("username",""),)).fetchone()
+
+        if not ruta:
+            cur = conn.execute("""
+                INSERT INTO rutas(cliente_codigo,cliente_nombre,proyecto,estado,created_by,created_at)
+                VALUES(?,?,?,?,?,?)
+            """, (
+                "ECI", "EL CORTE INGLES", "",
+                "BORRADOR",
+                session.get("username",""),
+                datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ))
+            conn.commit()
+            ruta_id = cur.lastrowid
+        else:
+            ruta_id = ruta["id"]
+
+    return redirect(url_for("rutas_edit", ruta_id=ruta_id))
+    
+@app.route("/rutas/<int:ruta_id>")
+@login_required
+@module_required("rutas")
+def rutas_edit(ruta_id: int):
+    with db_data() as conn:
+        ruta = conn.execute("SELECT * FROM rutas WHERE id=?", (ruta_id,)).fetchone()
+        items = conn.execute("SELECT * FROM ruta_items WHERE ruta_id=? ORDER BY id ASC", (ruta_id,)).fetchall()
+    if not ruta:
+        return "Ruta no existe", 404
+    return render_template("ruta_edit.html", ruta=ruta, items=items, tipos=TIPOS_VALIDOS)
+
+@app.route("/rutas/<int:ruta_id>/upload_pdf", methods=["POST"])
+@login_required
+@module_required("rutas")
+def rutas_upload_pdf(ruta_id: int):
+    f = request.files.get("pdf")
+    if not f:
+        return redirect(url_for("rutas_edit", ruta_id=ruta_id))
+
+    filename = secure_filename(f.filename or "ruta.pdf")
+    if not filename.lower().endswith(".pdf"):
+        filename += ".pdf"
+
+    # Guardamos con nombre único para evitar pisar PDFs (y evitar bugs raros)
+    stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"ruta_{ruta_id}_{stamp}_{filename}"
+
+    path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    f.save(path)
+
+    parsed = parse_eci_route_pdf_basic(path)
+    fecha = parsed.get("fecha", "") or ""
+
+    # De momento NO creamos items automáticamente (MVP). Solo guardamos pdf y fecha.
+    with db_data() as conn:
+        conn.execute(
+            "UPDATE rutas SET pdf_filename=?, fecha=? WHERE id=?",
+            (filename, fecha, ruta_id)
+        )
+        conn.commit()
+
+    return redirect(url_for("rutas_edit", ruta_id=ruta_id))
+    
+@app.route("/rutas/<int:ruta_id>/save", methods=["POST"])
+@login_required
+@module_required("rutas")
+def rutas_save(ruta_id: int):
+    payload = request.json or {}
+    ruta = payload.get("ruta") or {}
+    items = payload.get("items") or []
+
+    # normaliza tipos
+    for it in items:
+        t = (it.get("tipo") or "PROPIOS").upper().strip()
+        if t not in TIPOS_VALIDOS:
+            t = "PROPIOS"
+        it["tipo"] = t
+
+    errors = enforce_uniques(items)
+    if errors:
+        return jsonify({"error": "\n".join(errors)}), 400
+
+    with db_data() as conn:
+        conn.execute(
+            "UPDATE rutas SET proyecto=?, fecha=?, origen=?, destino=? WHERE id=?",
+            (
+                (ruta.get("proyecto") or "").strip(),
+                (ruta.get("fecha") or "").strip(),
+                (ruta.get("origen") or "").strip(),
+                (ruta.get("destino") or "").strip(),
+                ruta_id
+            )
+        )
+        conn.execute("DELETE FROM ruta_items WHERE ruta_id=?", (ruta_id,))
+        for it in items:
+            conn.execute("""
+                INSERT INTO ruta_items(
+                    ruta_id,tipo,colaborador,conductor,vehiculo,remolque,origen,destino,salida,llegada,km_aprox,duracion_h,notas
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (
+                ruta_id,
+                it.get("tipo","PROPIOS"),
+                (it.get("colaborador") or "").strip(),
+                (it.get("conductor") or "").strip(),
+                (it.get("vehiculo") or "").strip(),
+                (it.get("remolque") or "").strip(),
+                (it.get("origen") or "").strip(),
+                (it.get("destino") or "").strip(),
+                (it.get("salida") or "").strip(),
+                (it.get("llegada") or "").strip(),
+                float(it.get("km_aprox") or 0),
+                float(it.get("duracion_h") or 0),
+                (it.get("notas") or "").strip(),
+            ))
+        conn.commit()
+
+    return jsonify({"ok": True})
+
+@app.route("/rutas/<int:ruta_id>/to_planificacion", methods=["POST"])
+@login_required
+@module_required("rutas")
+def rutas_to_planificacion(ruta_id: int):
+    with db_data() as conn:
+        ruta = conn.execute("SELECT * FROM rutas WHERE id=?", (ruta_id,)).fetchone()
+        items = conn.execute("SELECT * FROM ruta_items WHERE ruta_id=? ORDER BY id ASC", (ruta_id,)).fetchall()
+    if not ruta:
+        return jsonify({"error":"Ruta no existe"}), 404
+
+    pack = {
+        "ruta": dict(ruta),
+        "items": [dict(x) for x in items],
+        "saved_at": datetime.datetime.now().isoformat(timespec="seconds")
+    }
+
+    titulo = f"PLANIF · Ruta #{ruta_id} · {ruta['fecha'] or 'sin_fecha'}"
+    with db_data() as conn:
+        conn.execute(
+            "INSERT INTO planificacion(titulo,payload_json,created_by,created_at) VALUES(?,?,?,?)",
+            (titulo, json.dumps(pack, ensure_ascii=False), session.get("username",""), datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        )
+        conn.commit()
+
+    return jsonify({"ok": True})
+
+# ============================================================
+# ==================== NUEVO: PLANIFICACIÓN ==================
+# ============================================================
 @app.route("/planificacion")
 @login_required
 @module_required("planificacion")
